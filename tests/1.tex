@@ -1,0 +1,175 @@
+\documentclass{article}
+
+% =========================================================================
+% EVOLVED SEMANTIC MACRO INFRASTRUCTURE (REPLACING THE LEGACY MACRO BS)
+% =========================================================================
+%% COMPILER CORE EVOLUTION:
+%% Legacy TeX executes character-level string expansion in the "mouth" before parsing.
+%% Prostha/mtex completely eliminates this by using Semantic Type Registration:
+%%
+%% 1. \registerMathSpace: Binds a layout token directly to an optimized hardware domain.
+%% 2. Inline Lua Blocks: Replaces volatile TeX macro scripting with sandboxed LuaJIT code execution.
+%% 3. Yoga Layout Engine Hooks: Allows packages to compute visual element sizing using
+%%    modern UI flexbox logic instead of rigid, single-threaded TeX box registers.
+
+\begin{document}
+
+\section{Prostha Core Evolved Lexer & Parser Stress Suite}
+
+---
+
+%% =========================================================================
+%% TEST 21: UNMATCHED SIZING FENCES (REPLACING REGEX SCOPE BREAKAGES)
+%% =========================================================================
+%% LEGACY PROBLEM: Standard parsers match \left( and \right) as rigid tree scopes.
+%%                 Naked sizing commands like \biggl break standard recursive-descent parsers.
+%% EVOLVED LEXER: Emits TOKEN_LAYOUT_DECORATOR instead of an opening scope boundary.
+%% EVOLVED PARSER: The Pratt parser assigns this token zero binding power. It applies a visual
+%%                 scale multiplier attribute directly onto the target node in the AST without
+%%                 allocating a new scope layer.
+%% COMPILER LOGIC: Drops the sizing metadata entirely during the C++ execution pass. The math
+%%                 evaluates smoothly as a flat stream without unbalancing the parser's internal memory stacks.
+\begin{equation}
+\biggl( \mathbf{A}x - \mathbf{b} \bigr) \cdot \bigl[ \mathbf{y} + \mathbf{c} \biggr] = 0
+\end{equation}
+
+---
+
+%% =========================================================================
+%% TEST 22: DOUBLE SCRIPT FAULTS & REAL-TIME LSP STATE RECOVERY
+%% =========================================================================
+%% LEGACY PROBLEM: Writing x_i_j in standard TeX yields a cryptic "Double subscript" crash.
+%% EVOLVED LEXER: Captures sequential script tokens sequentially without a grouping separator.
+%% EVOLVED PARSER: Detects a parsing state violation (sibling index collision). Rather than throwing
+%%                 a fatal crash, it triggers an AST Rewrite Rule.
+%% LSP DIAGNOSTIC: The Dart-style analyzer intercepts this at design time, generates an internal
+%%                 branch fork, and infers a sequential multi-index array lookup configuration
+%%                 (e.g., x[i][j]) while outputting a clear correction alert to the editor.
+\begin{equation}
+\mathbf{x}_i_j = \mathbf{y}^n^m
+\end{equation}
+
+---
+
+%% =========================================================================
+%% TEST 23: INLINE AND DISPLAY CONTEXT TOGGLES (STATE MACHINE SWAPPING)
+%% =========================================================================
+%% EVOLVED LEXER: Implements a dual-state machine (TEXT_MODE and MATH_MODE). Encountering
+%%                a single '$' or '\(' boundary primitive instantly flips the token routing path.
+%% COMPILER LOGIC: Inline variable strings (like \mathbf{v}) map to the exact same continuous
+%%                 C++ memory pointers as display block variables. This preserves data-oriented
+%%                 locality and synchronization across the entire lifecycle of the document.
+The vector field $\mathbf{v} \in \mathbb{R}^3$ maps directly to the boundary \( \partial \Omega \).
+
+---
+
+%% =========================================================================
+%% TEST 24: PRE-SUBSCRIPT NOTATION ON ANONYMOUS MEMORY BLOCKS
+%% =========================================================================
+%% LEGACY PROBLEM: Indices must always modify an active preceding symbol character.
+%% EVOLVED PARSER: When index tokens (_ or ^) attach to an empty group '{}', the parser
+%%                 instantiates a PlaceholderPrefixNode in the AST.
+%% COMPILER LOGIC: The JIT engine holds execution order execution until the true operand
+%%                 (like 'X') is parsed. It then retroactively maps those index offsets to the
+%%                 tensor strides of variable 'X', preventing null-pointer evaluation crashes.
+\begin{equation}
+{}_7^{14}\mathbf{X} + {}_{t_0}^{t_1}\mathbf{\Phi} = \mathbf{0}
+\end{equation}
+
+---
+
+%% =========================================================================
+%% TEST 25: HETEROGENEOUS GRID SPANS (YOGA FLEXBOX INTEGRATION)
+%% =========================================================================
+%% LEGACY PROBLEM: TeX column snapping is computationally heavy and unreadable by data layers.
+%% YOGA LAYOUT ENGINE: The parser captures the '\multicolumn{2}{c}' token layout rules and
+%%                     streams them straight into a Yoga Flexbox layout tree node.
+%% COMPILER LOGIC: Yoga calculates pixel boundaries and vector alignment offsets instantly
+%%                 for the live PDF visual generator, while completely decoupling the backend
+%%                 C++ matrix execution array from the visual spanning presentation layout.
+\begin{equation}
+\mathbf{M} = \begin{bmatrix}
+\multicolumn{2}{c}{\mathbf{A}_{\text{merged}}} & b_1 \\
+c_1 & c_2 & b_2
+\end{bmatrix}
+\end{equation}
+
+---
+
+%% =========================================================================
+%% TEST 26: DEEP ACCENT STACKS & RECURSIVE VARIABLE UNROLLING
+%% =========================================================================
+%% EVOLVED PARSER: Uses an aggressive recursive Pratt parsing loop to resolve deep layout nesting
+%%                 (Tilde -> Hat -> Vector Variable) alongside nested indices of indices.
+%% COMPILER LOGIC: The AST evaluator unrolls the structural layout decoration chain until it isolates
+%%                 the base memory symbol 'x'. It resolves the multi-tier index stride allocation offsets
+%%                 and passes the underlying raw memory address directly to the processor's registers.
+\begin{equation}
+\tilde{\hat{\mathbf{x}}}_{i_{k_m}} = \alpha
+\end{equation}
+
+---
+
+%% =========================================================================
+%% TEST 27: DEEP INCEPTION STATE TOGGLING (MATH -> TEXT -> MATH -> LUA)
+%% =========================================================================
+%% EVOLVED LEXER: Dynamically handles recursive context transitions: Math -> Text -> Math.
+%% LUAJIT ENGINE: If a modern script escape (like a Lua call) occurs within the text block
+%%                nested inside the math environment, the runtime handles it without dropping state.
+%% COMPILER LOGIC: Ensures that local logic conditions written inside text groups maintain full
+%%                 type awareness and correctly link back to active C++ simulation data frames.
+\begin{equation}
+\mathbf{A}_i = \mathbf{B} \quad \text{if } \omega = 0 \text{ and } \mathbf{x} \in \text{Domain } \mathcal{D}_k
+\end{equation}
+
+---
+
+%% =========================================================================
+%% TEST 28: ESCAPED CHARACTER PRIMITIVES VS ACTIVE PARSER DELIMITERS
+%% =========================================================================
+%% EVOLVED LEXER: Looks ahead when encountering a backslash character. If the following token matches
+%%                a fundamental parsing control character (\_, \&, \#), it skips standard syntax path
+%%                routing and emits a literal TOKEN_STRING identifier.
+%% COMPILER LOGIC: Guarantees that a data-oriented variable name containing string layout
+%%                 decorations (like 'sys\_fault') parses cleanly as a single unfragmented variable
+%%                 handle rather than breaking down into a broken subscript command sequence.
+\begin{equation}
+\mathbf{X}_{\text{sys}\_fault} = \alpha \# 1 \ \& \ \beta
+\end{equation}
+
+---
+
+%% =========================================================================
+%% TEST 29: GREEDY LOOKAHEAD MATCHING (MAXIMAL MUNCH STRATEGY)
+%% =========================================================================
+%% EVOLVED LEXER: Implements a highly optimized greedy matching lookahead engine ("Maximal Munch").
+%%                When processing characters, it won't fragment long operators prematurely.
+%% PARSING LOGIC: Prevents a complex command string like '\longrightarrow' from breaking down
+%%                into independent '\long' and '\rightarrow' tokens, which would completely corrupt
+%%                the AST structural logic tree and crash compilation.
+\begin{equation}
+\mathbf{x} \simeq \mathbf{y} \longrightarrow \mathbf{z} \sim \mathbf{w}
+\end{equation}
+
+---
+
+%% =========================================================================
+%% TEST 30: ARBITRARY MULTI-LINE WHITESPACE INERTIA
+%% =========================================================================
+%% EVOLVED LEXER: Categorizes consecutive blank spaces, line feeds, and carriage returns as
+%%                TOKEN_WHITESPACE and strips them cleanly out of active math mode tracking paths.
+%% EVOLVED PARSER: Operates entirely on token sequencing streams rather than line indices. This allows
+%%                complex expressions like multi-line fractions to evaluate smoothly into a single
+%%                unified AST division branch node regardless of the visual code layout.
+\begin{equation}
+\frac
+    { \mathbf{x} }
+    {
+        \mathbf{y}
+    }
+    =
+    \overline
+    { \mathbf{M} }
+\end{equation}
+
+\end{document}
