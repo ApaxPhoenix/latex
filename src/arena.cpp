@@ -1,37 +1,50 @@
 #include "arena.hpp"
-#include <algorithm>
-#include <cassert>
-#include <new>
-
-#include "arena.hpp"
 
 namespace core::arena {
 
-    // Constructor
     Arena::Arena(const size_t size) : capacity(size) {
-        // 1. Call your internal block allocator helper to boot up the first chunk
         this->grow();
     }
 
-    // Destructor
     Arena::~Arena() {
-        // 1. Call your dispose method to ensure all OS allocations are freed
         this->dispose();
     }
 
-    // Allocation Logic
-    void* Arena::allocate(size_t size, size_t alignment) {
-        
+    void* Arena::allocate(const size_t size, const size_t alignment) {
+        if (size > this->capacity) {
+            throw std::bad_alloc();
+        }
+
+        auto* chunk = &this->chunks.back();
+        size_t offset = chunk->offset + alignment - 1 & ~(alignment - 1);
+
+        if (offset + size > chunk->capacity) {
+            this->grow();
+            chunk = &this->chunks.back();
+            offset = 0;
+        }
+
+        void* memory = chunk->buffer + offset;
+        chunk->offset = offset + size;
+
+        return memory;
     }
 
-    // Memory Cleanup
-    void Arena::dispose() {
-
-    }
-
-    // Allocation Internal Helper (grow)
     void Arena::grow() {
+        auto* buffer = static_cast<uint8_t*>(std::malloc(capacity));
 
+        if (buffer == nullptr) {
+            throw std::bad_alloc();
+        }
+
+        this->chunks.push_back(Chunk{buffer, this->capacity, 0});
     }
 
+    void Arena::dispose() {
+        for (const auto& chunk : this->chunks) {
+            std::free(chunk.buffer);
+        }
+
+        this->chunks.clear();
+    }
 }
