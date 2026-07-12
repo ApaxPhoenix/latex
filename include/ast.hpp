@@ -23,9 +23,9 @@ namespace core::ast {
     };
 
     struct Node {
-        Type type;                  // Identifies the structural identity and evaluation rule of this node
-        std::string_view value;     // Direct text view window pointing to the slice of the original source buffer
-        std::vector<Node*> children; // Contiguous layout array tracking nested inner sub-nodes, parameters, or operands
+        Type type;
+        uint16_t depth;
+        std::string_view value;
     };
 
 }
