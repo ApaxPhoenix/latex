@@ -1,4 +1,4 @@
-#include "lexer.hpp"
+#include "core/lexer.hpp"
 
 namespace core::lexer {
 
@@ -8,7 +8,6 @@ namespace core::lexer {
         if (index + distance < tokens.size()) {
             return tokens[index + distance];
         }
-
         if (!tokens.empty()) {
             return tokens.back();
         }
@@ -20,5 +19,10 @@ namespace core::lexer {
             return tokens[index++];
         }
         return lookahead(0);
+    }
+
+    void Cursor::inject(std::vector<Token>&& items) {
+        if (items.empty()) return;
+        tokens.insert(tokens.begin() + static_cast<std::ptrdiff_t>(index), items.begin(), items.end());
     }
 }

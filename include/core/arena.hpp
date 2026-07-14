@@ -19,10 +19,10 @@ namespace core::arena {
 
         void* allocate(size_t size, size_t alignment = alignof(std::max_align_t));
 
-        template <typename T, typename... Args>
-        T* construct(Args&&... args) {
+        template <typename T, typename... Arguments>
+        T* construct(Arguments&&... arguments) {
             void* memory = allocate(sizeof(T), alignof(T));
-            return ::new (memory) T(std::forward<Args>(args)...);
+            return ::new (memory) T(std::forward<Arguments>(arguments)...);
         }
 
         void dispose();

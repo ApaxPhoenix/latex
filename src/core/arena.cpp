@@ -1,4 +1,4 @@
-#include "arena.hpp"
+#include "core/arena.hpp"
 
 namespace core::arena {
 
@@ -37,7 +37,12 @@ namespace core::arena {
             throw std::bad_alloc();
         }
 
-        this->chunks.push_back(Chunk{buffer, this->capacity, 0});
+        try {
+            this->chunks.push_back(Chunk{buffer, this->capacity, 0});
+        } catch (...) {
+            std::free(buffer);
+            throw;
+        }
     }
 
     void Arena::dispose() {

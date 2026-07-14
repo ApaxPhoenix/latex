@@ -1,87 +1,63 @@
 #include <iostream>
-#include <fstream>
-#include <sstream>
+#include <string>
 #include <vector>
-#include <unordered_map>
-#include <string_view>
-#include "lexer.hpp"
-#include "parser.hpp"
-#include "arena.hpp"
-#include "ast.hpp"
 
-std::string_view token_type_to_string(const core::lexer::Type type) {
-    static const std::unordered_map<core::lexer::Type, std::string_view> type_map = {
-        {core::lexer::Type::LEFT_BRACE,        "LEFT_BRACE"},
-        {core::lexer::Type::RIGHT_BRACE,       "RIGHT_BRACE"},
-        {core::lexer::Type::LEFT_BRACKET,      "LEFT_BRACKET"},
-        {core::lexer::Type::RIGHT_BRACKET,     "RIGHT_BRACKET"},
-        {core::lexer::Type::LEFT_PARENTHESIS,  "LEFT_PARENTHESIS"},
-        {core::lexer::Type::RIGHT_PARENTHESIS, "RIGHT_PARENTHESIS"},
-        {core::lexer::Type::ROW_BREAK,         "ROW_BREAK"},
-        {core::lexer::Type::DOLLAR,            "DOLLAR"},
-        {core::lexer::Type::AMPERSAND,         "AMPERSAND"},
-        {core::lexer::Type::UNDERSCORE,        "UNDERSCORE"},
-        {core::lexer::Type::CARET,             "CARET"},
-        {core::lexer::Type::TILDE,             "TILDE"},
-        {core::lexer::Type::COMMENT,           "COMMENT"},
-        {core::lexer::Type::COMMAND,           "COMMAND"},
-        {core::lexer::Type::IDENTIFIER,        "IDENTIFIER"},
-        {core::lexer::Type::PROSE,             "PROSE"},
-        {core::lexer::Type::NEWLINE,           "NEWLINE"},
-        {core::lexer::Type::WHITESPACE,        "WHITESPACE"},
-        {core::lexer::Type::END_OF_FILE,       "END_OF_FILE"}
-    };
+#include "core/lexer.hpp"
+#include "core/parser.hpp"
+#include "core/arena.hpp"
+#include "core/ast.hpp"
 
-    if (const auto it = type_map.find(type); it != type_map.end()) {
-        return it->second;
-    }
-    return "UNKNOWN";
-}
-
-std::string_view ast_type_to_string(const core::ast::Type type) {
-    static const std::unordered_map<core::ast::Type, std::string_view> type_map = {
-        {core::ast::Type::SCOPE,   "SCOPE"},
-        {core::ast::Type::COMMAND, "COMMAND"},
-        {core::ast::Type::TEXT,    "TEXT"}
-    };
-
-    if (auto it = type_map.find(type); it != type_map.end()) {
-        return it->second;
-    }
-    return "UNKNOWN";
-}
+#include "pipeline/font.hpp"
+#include "pipeline/layout.hpp"
+#include "pipeline/raster.hpp"
+#include "render.hpp"
 
 int main() {
-    std::ifstream file("../tests/main.tex");
-    if (!file.is_open()) {
-        std::cerr << "error: failed to open source file '../tests/main.tex'\n";
-        return 1;
-    }
+    std::cout << "Starting LaTeX compiling engine...\n";
 
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    std::string source = buffer.str();
+    const std::string source = R"(
+        This is a demo page generated from our custom LaTeX rendering pipeline.
+        The font is loaded directly from our assets.
+        
+        \newpage
+        
+        This is a clean second page.
+    )";
 
+    std::cout << "Tokenizing source...\n";
     core::lexer::Lexer lexer(source);
     std::vector<core::lexer::Token> tokens = lexer.tokenize();
 
-    for (const auto&[type, value, line, column] : tokens) {
-        std::cout << "token: type=" << token_type_to_string(type)
-                  << " line=" << line
-                  << " col=" << column
-                  << " val=\"" << value << "\"\n";
-    }
-
+    std::cout << "Parsing tokens into AST...\n";
     core::lexer::Cursor stream(tokens);
     core::arena::Arena pool;
     core::parser::Parser parser(stream, pool);
-    std::vector<core::ast::Node*> nodes = parser.parse();
+    std::vector<core::ast::Node*> tree = parser.parse();
 
-    for (const auto* node : nodes) {
-        std::cout << "node: type=" << ast_type_to_string(node->type)
-                  << " depth=" << node->depth
-                  << " val=\"" << node->value << "\"\n";
+    std::cout << "Loading NewCMMath-Regular font...\n";
+    Font font;
+    try {
+        font.load("latin", "regular", "assets/fonts/NewCMMath-Regular.otf");
+    } catch (const std::exception& error) {
+        std::cerr << "Warning: Could not register font: " << error.what() << "\n";
     }
 
+    std::cout << "Initializing raster resources...\n";
+    Raster raster;
+
+    std::cout << "Building document layout...\n";
+    Layout layout(pool);
+
+    const Widget* widget = nullptr;
+    if (!tree.empty()) {
+        core::ast::Node root{core::ast::Type::DOCUMENT, "root", tree};
+        widget = layout.compute(&root, font, raster);
+    }
+
+    std::cout << "Rendering document to PDF...\n";
+    constexpr auto path = "output.pdf";
+    Render::draw(widget, raster, path);
+
+    std::cout << "Success! Document compiled and written to: " << path << "\n";
     return 0;
 }
