@@ -20,6 +20,8 @@ find_library(CAIRO_LIBRARY NAMES cairo REQUIRED)
 find_path(FONTCONFIG_INCLUDE_DIR NAMES fontconfig/fontconfig.h REQUIRED)
 find_library(FONTCONFIG_LIBRARY NAMES fontconfig REQUIRED)
 
+find_package(Freetype REQUIRED)
+
 find_package(LLVM REQUIRED CONFIG)
 add_definitions(${LLVM_DEFINITIONS})
 
@@ -52,6 +54,7 @@ target_include_directories(latex PUBLIC
         ${LLVM_INCLUDE_DIRS}
         ${CAIRO_INCLUDE_DIR}
         ${FONTCONFIG_INCLUDE_DIR}
+        ${FREETYPE_INCLUDE_DIRS}
 )
 
 if(MSVC)
@@ -59,12 +62,14 @@ if(MSVC)
             ${LLVM_LIBS}
             ${CAIRO_LIBRARY}
             ${FONTCONFIG_LIBRARY}
+            ${FREETYPE_LIBRARIES}
     )
 else()
     target_link_libraries(latex PRIVATE
             ${LLVM_LIBS}
             ${CAIRO_LIBRARY}
             ${FONTCONFIG_LIBRARY}
+            ${FREETYPE_LIBRARIES}
             zstd
             m
             dl

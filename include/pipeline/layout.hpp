@@ -9,10 +9,26 @@
 #include <optional>
 #include <string>
 
-namespace pipeline {
+namespace pipeline::layout {
 
-    enum class Display { FLEX, INLINE };
-    enum class Direction { ROW, COLUMN };
+    struct Blueprint {
+        float width = 612.0f;
+        float height = 792.0f;
+        float margin = 72.0f;
+        float scale = 10.0f;
+        int columns = 1;
+        float gutter = 18.0f;
+    };
+
+    enum class Display {
+        FLEX,
+        INLINE
+    };
+
+    enum class Direction {
+        ROW,
+        COLUMN
+    };
 
     struct Properties {
         Display display = Display::FLEX;
@@ -35,12 +51,16 @@ namespace pipeline {
         std::vector<Widget*> children;
     };
 
+    Widget* initialize(core::arena::Arena& arena, const core::ast::Node* source, const Properties& properties);
+    void sizing(Widget* widget, const font::Font& font, const raster::Raster& raster, core::arena::Arena& arena);
+    void position(Widget* widget, float left, float top);
+
     class Layout {
         core::arena::Arena& arena;
 
     public:
         explicit Layout(core::arena::Arena& arena);
-        Widget* compute(const core::ast::Node* node, const Font& font, const Raster& raster) const;
+        Widget* compute(const core::ast::Node* node, const font::Font& font, const raster::Raster& raster) const;
     };
 
 }

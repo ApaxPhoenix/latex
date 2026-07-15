@@ -2,19 +2,21 @@
 
 #include <cairo.h>
 #include <cairo-pdf.h>
+#include <ranges>
 #include <vector>
 
-void Render::draw(const Widget* widget, const Raster& raster, const std::string& path) {
+
+void Render::draw(const layout::Widget* widget, const raster::Raster& raster, const std::string& path) {
     if (!widget) return;
 
     auto* surface = cairo_pdf_surface_create(path.c_str(), 612.0, 792.0);
     auto* context = cairo_create(surface);
 
-    std::vector<const Widget*> stack;
+    std::vector<const layout::Widget*> stack;
     stack.push_back(widget);
 
     while (!stack.empty()) {
-        const Widget* item = stack.back();
+        const layout::Widget* item = stack.back();
         stack.pop_back();
 
         if (!item) continue;
@@ -33,8 +35,8 @@ void Render::draw(const Widget* widget, const Raster& raster, const std::string&
             }
         }
 
-        for (auto it = item->children.rbegin(); it != item->children.rend(); ++it) {
-            stack.push_back(*it);
+        for (const auto it : std::views::reverse(item->children)) {
+            stack.push_back(it);
         }
     }
 

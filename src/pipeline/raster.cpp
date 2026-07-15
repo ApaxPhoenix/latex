@@ -1,11 +1,13 @@
 #include "pipeline/raster.hpp"
 
 #include <cairo.h>
+#include <ranges>
 
-namespace pipeline {
+
+namespace pipeline::raster {
 
     Raster::~Raster() {
-        for (auto& [name, surface] : this->graphics) {
+        for (const auto &surface: this->graphics | std::views::values) {
             if (surface) {
                 cairo_surface_destroy(static_cast<cairo_surface_t*>(surface));
             }

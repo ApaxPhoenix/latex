@@ -6,37 +6,27 @@
 namespace core::lexer {
 
     enum class Type {
-        // Delimiters and operators
-        LEFT_BRACE,
-        RIGHT_BRACE,
-        LEFT_BRACKET,
-        RIGHT_BRACKET,
-        LEFT_PARENTHESIS,
-        RIGHT_PARENTHESIS,
-        AMPERSAND,
-        UNDERSCORE,
-        CARET,
-        TILDE,
-        ROW_BREAK,
-        DOLLAR,
-
-        // Command prefixes
-        ESCAPE,
-        MACRO,
-        PARAMETER,
-        REFERENCE,
-
-        // Basic content
-        LETTER,
-        OTHER,
-        PROSE,
-        TEXT,
-
-        // Document syntax
-        COMMENT,
-        IDENTIFIER,
-        NEWLINE,
-        WHITESPACE,
+        LEFT_BRACE,         // '{'
+        RIGHT_BRACE,        // '}'
+        LEFT_BRACKET,       // '['
+        RIGHT_BRACKET,      // ']'
+        LEFT_PARENTHESIS,   // '('
+        RIGHT_PARENTHESIS,  // ')'
+        AMPERSAND,          // '&'
+        UNDERSCORE,         // '_'
+        CARET,              // '^'
+        TILDE,              // '~'
+        ROW_BREAK,          // '\\'
+        DOLLAR,             // '$'
+        ESCAPE,             // '\'
+        MACRO,              // '\command'
+        PARAMETER,          // '#1'
+        REFERENCE,          // '@ref'
+        TEXT,               // letters
+        NUMBER,             // digits
+        COMMENT,            // '%'
+        NEWLINE,            // '\n'
+        WHITESPACE,         // ' '
         END_OF_FILE
     };
 
@@ -54,12 +44,17 @@ namespace core::lexer {
 
     private:
         std::string_view source;
-        size_t start = 0;
-        size_t end = 0;
-        size_t line = 1;
-        size_t column = 1;
+        size_t start;
+        size_t end;
+        size_t line;
+        size_t column;
         Type categories[256];
         Token advance();
+    };
+
+    struct Stream {
+        std::vector<Token> list;
+        size_t head = 0;
     };
 
     class Cursor {
@@ -71,8 +66,7 @@ namespace core::lexer {
         void inject(std::vector<Token>&& items);
 
     private:
-        std::vector<Token> tokens;
-        size_t index = 0;
+        std::vector<Stream> stack;
     };
 
 }

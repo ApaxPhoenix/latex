@@ -3,7 +3,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace pipeline {
+namespace pipeline::raster {
 
     class Raster {
         std::unordered_map<std::string, void*> graphics;
