@@ -19,12 +19,12 @@ namespace typography {
 
         std::size_t offset = 0;
         while (offset < pattern.size()) {
-            if (const char character = pattern[offset]; character >= '0' && character <= '9') {
-                buffer[count - 1] = static_cast<std::uint8_t>(character - '0');
+            if (const char symbol = pattern[offset]; symbol >= '0' && symbol <= '9') {
+                buffer[count - 1] = static_cast<std::uint8_t>(symbol - '0');
             } else {
-                if (auto next = current->children.find(character); next == current->children.end()) {
+                if (auto next = current->children.find(symbol); next == current->children.end()) {
                     auto* child = memory.compose<Node>();
-                    current->children[character] = child;
+                    current->children[symbol] = child;
                     current = child;
                 } else {
                     current = next->second;
