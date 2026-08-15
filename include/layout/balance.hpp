@@ -1,6 +1,7 @@
 #pragma once
 
 #include "memory/arena.hpp"
+#include "memory/slice.hpp"
 #include "layout/layer.hpp"
 
 namespace layout {
@@ -21,8 +22,8 @@ namespace layout {
             float total = 0.0f;
             std::size_t count = 0;
 
-            for (const auto & layer : layers) {
-                const float height = layer.size().height + layer.size().depth;
+            for (const auto& layer : layers) {
+                const float height = layer.size().height + layer.bounds().height;
                 if (total + height > limit && count > 0) {
                     break;
                 }

@@ -2,7 +2,6 @@
 
 #include "layout/grid.hpp"
 #include "layout/node.hpp"
-#include "memory/arena.hpp"
 #include "memory/slice.hpp"
 
 #include <vector>
@@ -56,8 +55,8 @@ namespace layout {
 
     private:
         Type item = Type::Block;
-        Edge pad{};
-        Edge gap{};
+        Edge padding_{};
+        Edge margin_{};
         Node::Point position{};
         Node::Size extent{};
         Node::Size limit{};

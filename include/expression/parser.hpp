@@ -1,0 +1,45 @@
+#pragma once
+
+#include "expression/node.hpp"
+#include "syntax/mouth.hpp"
+#include "syntax/unicodes.hpp"
+#include "memory/arena.hpp"
+
+#include <vector>
+
+namespace expression {
+
+    struct Rule {
+        Node::Type type = Node::Type::Variable;
+        int weight = 0;
+        bool right = false;
+        bool structural = false;
+    };
+
+    class Parser {
+    public:
+        Parser(syntax::Mouth& mouth, const syntax::Unicodes& unicodes, memory::Arena& arena);
+
+        Node* parse();
+        void bind(syntax::Symbol symbol, Node::Type type, int weight = 0, bool right = false, bool structural = false);
+        [[nodiscard]] Node* compose(Node::Type type) const;
+
+    private:
+        syntax::Token advance();
+        [[nodiscard]] syntax::Token lookahead() const noexcept;
+
+        Node* step(int priority = 0);
+        Node* atom();
+        Node* core();
+        Node* group(char closing);
+        Node* script(Node* base);
+        Node* structural(Node::Type type);
+
+        syntax::Mouth& mouth;
+        const syntax::Unicodes& unicodes;
+        memory::Arena& arena;
+        syntax::Token current{};
+        std::vector<Rule> rules{};
+    };
+
+}
