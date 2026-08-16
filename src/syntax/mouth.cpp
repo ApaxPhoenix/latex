@@ -5,7 +5,7 @@
 #include "logger.hpp"
 
 #include <algorithm>
-#include <ranges>
+#include <format>
 #include <utility>
 
 namespace syntax {
@@ -30,11 +30,11 @@ namespace syntax {
         this->marks.pop_back();
 
         for (std::size_t count = this->records.size(); count > mark; --count) {
-            const auto [symbol, macro, active] = this->records.back();
+            auto record = std::move(this->records.back());
             this->records.pop_back();
-            if (symbol < this->macros.size()) {
-                this->macros[symbol] = macro;
-                this->macros[symbol].active = active;
+            if (record.symbol < this->macros.size()) {
+                this->macros[record.symbol] = std::move(record.macros);
+                this->macros[record.symbol].active = record.active;
             }
         }
     }
@@ -92,13 +92,17 @@ namespace syntax {
 
             std::vector<Token> output;
             const auto& body = macro.body;
-            output.reserve(body.size());
+            std::size_t total = body.size();
+            for (const auto& item : arguments) {
+                total += item.size();
+            }
+            output.reserve(total);
 
             for (std::size_t index = 0; index < body.size(); ++index) {
                 if (body[index].category == CatCodes::Category::Parameter && index + 1 < body.size()) {
                     if (const auto& values = body[index + 1].values; !values.empty() && values[0] >= '1' && values[0] <= '9') {
                         if (const auto slot = static_cast<std::size_t>(values[0] - '1'); slot < arguments.size()) {
-                            output.append_range(arguments[slot]);
+                            output.insert(output.end(), arguments[slot].begin(), arguments[slot].end());
                         }
                         index++;
                         continue;
@@ -120,14 +124,15 @@ namespace syntax {
         if (this->cursor.empty()) return result;
 
         if (parameter.optional) {
-            if (this->cursor.lookahead().category == CatCodes::Category::Other && this->cursor.lookahead().values == "[") {
+            const Token lead = this->cursor.lookahead(0);
+            if (lead.category == CatCodes::Category::Other && lead.values == "[") {
                 this->cursor.advance();
                 std::size_t scope = 1;
                 while (!this->cursor.empty() && scope > 0) {
                     Token token = this->cursor.advance();
                     if (token.values == "[") scope++;
                     else if (token.values == "]") scope--;
-                    if (scope > 0) result.push_back(token);
+                    if (scope > 0) result.push_back(std::move(token));
                 }
             } else {
                 result = parameter.fallbacks;
@@ -135,15 +140,21 @@ namespace syntax {
         } else if (!parameter.delimiters.empty()) {
             std::size_t scope = 0;
             bool matched = false;
+            const std::size_t count = parameter.delimiters.size();
 
             while (!this->cursor.empty()) {
                 if (scope == 0) {
-                    auto lookahead = std::views::iota(0uz, parameter.delimiters.size())
-                        | std::views::transform([this](const std::size_t offset) { return this->cursor.lookahead(offset).symbol; });
+                    bool found = true;
+                    for (std::size_t index = 0; index < count; ++index) {
+                        if (this->cursor.lookahead(index).symbol != parameter.delimiters[index].symbol) {
+                            found = false;
+                            break;
+                        }
+                    }
 
-                    if (auto delimiters = parameter.delimiters | std::views::transform(&Token::symbol); std::ranges::equal(lookahead, delimiters)) {
+                    if (found) {
                         matched = true;
-                        for (std::size_t index = 0; index < parameter.delimiters.size(); ++index) {
+                        for (std::size_t index = 0; index < count; ++index) {
                             this->cursor.advance();
                         }
                         break;
@@ -155,7 +166,7 @@ namespace syntax {
                     if (token.values == "{") scope++;
                     else if (token.values == "}" && scope > 0) scope--;
                 }
-                result.push_back(token);
+                result.push_back(std::move(token));
             }
 
             if (!matched) {
@@ -177,7 +188,7 @@ namespace syntax {
                         if (element.values == "{") scope++;
                         else if (element.values == "}") scope--;
                     }
-                    if (scope > 0) result.push_back(element);
+                    if (scope > 0) result.push_back(std::move(element));
                 }
                 if (scope > 0) {
                     const std::string message = "Macro argument block truncation missing trailing brace";
@@ -185,7 +196,9 @@ namespace syntax {
                     this->tracebacks_.emplace_back(Traceback::Type::Group, token.location, message);
                 }
             } else {
-                result.push_back(token);
+                if (token.symbol != kInvalidSymbol || !token.values.empty()) {
+                    result.push_back(token);
+                }
             }
         }
         return result;

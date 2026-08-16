@@ -24,6 +24,7 @@ namespace syntax {
 
         const Symbol paragraph = mouth_.lexicon().intern("\\par");
         std::string buffer;
+        buffer.reserve(256);
 
         using Location = decltype(mouth_.expand().location);
         Location position{};
@@ -32,7 +33,7 @@ namespace syntax {
             if (!buffer.empty()) {
                 nodes.push_back(arena_.compose<Node>(
                     Node::Type::Text,
-                    buffer,
+                    arena_.copy(buffer),
                     position,
                     memory::Slice<Node*>{}
                 ));
@@ -101,7 +102,9 @@ namespace syntax {
         }
 
         memory::Slice<Node*> slice = arena_.allocate<Node*>(nodes.size());
-        std::ranges::copy(nodes, slice.begin());
+        if (!nodes.empty()) {
+            std::copy(nodes.begin(), nodes.end(), slice.begin());
+        }
 
         Logger::fmt(Logger::Type::Parser, Logger::Level::Informative,
                     "Allocated AST slice containing {} node pointers in arena", slice.size());

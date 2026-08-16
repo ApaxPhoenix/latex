@@ -1,6 +1,8 @@
 #include "syntax/cursor.hpp"
 #include "logger.hpp"
 
+#include <utility>
+
 namespace syntax {
 
     Cursor::Cursor(std::vector<Token> tokens) {
@@ -12,8 +14,8 @@ namespace syntax {
     }
 
     Token Cursor::lookahead(const std::size_t offset) const noexcept {
-        if (this->head + offset < this->tokens.size()) {
-            return this->tokens[this->head + offset];
+        if (const std::size_t index = this->head + offset; index < this->tokens.size()) {
+            return this->tokens[index];
         }
         return {};
     }
@@ -22,6 +24,10 @@ namespace syntax {
         if (this->head < this->tokens.size()) {
             Token token = this->tokens[this->head++];
             Logger::fmt(Logger::Type::Mouth, Logger::Level::Traceback, "Cursor -> [head={}, text={}]", this->head, token.symbol);
+            if (this->head == this->tokens.size()) {
+                this->tokens.clear();
+                this->head = 0;
+            }
             return token;
         }
         return {};
@@ -29,7 +35,11 @@ namespace syntax {
 
     void Cursor::inject(const std::span<const Token> tokens) {
         if (tokens.empty()) return;
-        this->tokens.insert(this->tokens.begin() + static_cast<std::ptrdiff_t>(this->head), tokens.begin(), tokens.end());
+        if (this->head > 0) {
+            this->tokens.erase(this->tokens.begin(), this->tokens.begin() + static_cast<std::ptrdiff_t>(this->head));
+            this->head = 0;
+        }
+        this->tokens.insert(this->tokens.begin(), tokens.begin(), tokens.end());
         Logger::fmt(Logger::Type::Mouth, Logger::Level::Debug, "Cursor injected {} tokens at head {}", tokens.size(), this->head);
     }
 

@@ -2,6 +2,7 @@
 #include "layout/line.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 namespace layout {
@@ -11,14 +12,15 @@ namespace layout {
 
     double Breaker::badness(const double delta, const double flex) noexcept {
         if (flex <= 0.0) return 10000.0;
-        const double ratio = delta / flex;
+        const double ratio = std::abs(delta) / flex;
         return 100.0 * ratio * ratio * ratio;
     }
 
     std::uint8_t Breaker::classify(const double ratio) noexcept {
-        if (ratio < 0.5) return 0;
-        if (ratio < 1.0) return 1;
-        if (ratio < 2.0) return 2;
+        const double abs_ratio = std::abs(ratio);
+        if (abs_ratio < 0.5) return 0;
+        if (abs_ratio < 1.0) return 1;
+        if (abs_ratio < 2.0) return 2;
         return 3;
     }
 
@@ -59,17 +61,23 @@ namespace layout {
                 const double stretch = metrics[index].stretch - metrics[item.node].stretch;
                 const double shrink = metrics[index].shrink - metrics[item.node].shrink;
 
+                // Skip candidates where an overfilled line exceeds available shrink capacity
+                if (delta < 0.0 && shrink < -delta) continue;
+
                 const double flex = delta >= 0.0 ? stretch : shrink;
                 const double ratio = flex > 0.0 ? delta / flex : 0.0;
-
-                if (delta < 0.0 && shrink <= 0.0) continue;
 
                 double penalty = 0.0;
                 if (node->type() == Node::Type::Penalty) {
                     penalty = static_cast<double>(node->penalty().value);
                 }
 
-                const double score = badness(delta, flex) + penalty;
+                const double b = badness(delta, flex);
+
+                // Prune breakpoints exceeding badness tolerance threshold (unless forced break)
+                if (b > configuration.tolerance && penalty >= 0.0) continue;
+
+                const double score = b + penalty;
                 const double demerits = item.demerits + score * score;
 
                 active.push_back(Active{
@@ -109,7 +117,9 @@ namespace layout {
                 slice[offset] = input[start + offset];
             }
 
-            if (Node* box = Line::horizontal(arena, slice, static_cast<float>(configuration.target))) result.push_back(box);
+            if (Node* box = Line::horizontal(arena, slice, static_cast<float>(configuration.target))) {
+                result.push_back(box);
+            }
 
             start = finish;
         }
