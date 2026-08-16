@@ -10,9 +10,9 @@ namespace syntax {
 
     struct Token {
         Symbol symbol = kInvalidSymbol;
-        std::string_view value{};
+        std::string_view values{};
         memory::Location location{};
-        CatCodes::Type type = CatCodes::Type::Other;
+        CatCodes::Category category = CatCodes::Category::Other;
     };
 
 }

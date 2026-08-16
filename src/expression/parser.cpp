@@ -2,8 +2,8 @@
 
 namespace expression {
 
-    Parser::Parser(syntax::Mouth& mouth, const Unicodes& unicodes, memory::Arena& arena)
-        : mouth(mouth), unicodes(unicodes), arena(arena) {
+    Parser::Parser(syntax::Mouth& mouth, const Unicodes& unicodes, memory::Arena& arena, const Style style)
+        : mouth(mouth), unicodes(unicodes), arena(arena), style(style) {
         current = mouth.expand();
     }
 
@@ -21,11 +21,15 @@ namespace expression {
         auto slice = arena.allocate<Node>(1);
         Node* node = &slice[0];
         node->type = type;
-        node->type_ = Unicodes::Type::Ordinary;
+        node->category = Unicodes::Category::Ordinary;
+        node->style = style;
         node->codepoint = 0;
         node->value = {};
         node->left = nullptr;
         node->right = nullptr;
+        node->subscript = nullptr;
+        node->superscript = nullptr;
+        node->arguments = {};
         return node;
     }
 
@@ -37,14 +41,61 @@ namespace expression {
         rules[index] = Rule{type, weight, right, structural};
     }
 
+    Node* Parser::sequence(const char closing) {
+        std::vector<Node*> items;
+
+        while (true) {
+            const syntax::Token next = lookahead();
+            if (next.value.empty()) {
+                break;
+            }
+            if (closing != 0 && next.value.size() == 1 && next.value[0] == closing) {
+                advance();
+                break;
+            }
+            if (next.value == "}" || next.value == ")") {
+                break;
+            }
+
+            auto* item = step(0);
+            if (!item) {
+                break;
+            }
+            items.push_back(item);
+        }
+
+        if (items.empty()) {
+            return nullptr;
+        }
+        if (items.size() == 1) {
+            return items[0];
+        }
+
+        auto* node = compose(Node::Type::Sequence);
+        auto slice = arena.allocate<Node*>(items.size());
+        for (std::size_t i = 0; i < items.size(); ++i) {
+            slice[i] = items[i];
+        }
+        node->arguments = slice;
+        return node;
+    }
+
     Node* Parser::structural(const Node::Type type) {
         auto* node = compose(type);
-        if (type == Node::Type::Fraction) {
+
+        if (type == Node::Type::Radical) {
+            if (lookahead().value == "[") {
+                advance();
+                node->left = sequence(']');
+            }
+            node->right = core();
+        } else if (type == Node::Type::Fraction) {
             node->left = core();
             node->right = core();
-        } else if (type == Node::Type::Radical) {
-            node->right = core();
+        } else if (type == Node::Type::Accent) {
+            node->left = core();
         }
+
         return node;
     }
 
@@ -70,7 +121,7 @@ namespace expression {
             auto* node = compose(Node::Type::Variable);
             node->value = token.value;
             node->codepoint = symbol->codepoint;
-            node->type_ = symbol->type;
+            node->category = symbol->category;
             return node;
         }
 
@@ -85,36 +136,38 @@ namespace expression {
 
     Node* Parser::group(const char closing) {
         auto* node = compose(Node::Type::Group);
-        node->left = step(0);
-
-        if (lookahead().value.size() == 1 && lookahead().value[0] == closing) {
-            advance();
-        }
-
+        node->left = sequence(closing);
         return node;
     }
 
     Node* Parser::script(Node* base) {
         if (!base) return nullptr;
 
+        Node* subscript = nullptr;
+        Node* superscript = nullptr;
+
         while (true) {
-            if (const syntax::Token next = lookahead(); next.value == "_") {
+            const syntax::Token next = lookahead();
+            if (next.value == "_") {
                 advance();
-                auto* node = compose(Node::Type::Subscript);
-                node->left = base;
-                node->right = core();
-                base = node;
+                subscript = core();
             } else if (next.value == "^") {
                 advance();
-                auto* node = compose(Node::Type::Superscript);
-                node->left = base;
-                node->right = core();
-                base = node;
+                superscript = core();
             } else {
                 break;
             }
         }
-        return base;
+
+        if (!subscript && !superscript) {
+            return base;
+        }
+
+        auto* node = compose(Node::Type::SubSup);
+        node->left = base;
+        node->subscript = subscript;
+        node->superscript = superscript;
+        return node;
     }
 
     Node* Parser::step(const int priority) {
@@ -123,7 +176,7 @@ namespace expression {
 
         while (true) {
             const syntax::Token next = lookahead();
-            if (next.value.empty() || next.value == "}" || next.value == ")") {
+            if (next.value.empty() || next.value == "}" || next.value == ")" || next.value == "]") {
                 break;
             }
 
@@ -153,7 +206,7 @@ namespace expression {
     }
 
     Node* Parser::parse() {
-        return step(0);
+        return sequence(0);
     }
 
 }

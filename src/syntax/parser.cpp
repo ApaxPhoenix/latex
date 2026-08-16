@@ -28,7 +28,7 @@ namespace syntax {
         using Location = decltype(mouth_.expand().location);
         Location position{};
 
-        auto flush = [&]() {
+        auto flush = [&] {
             if (!buffer.empty()) {
                 nodes.push_back(arena_.compose<Node>(
                     Node::Type::Text,
@@ -41,18 +41,18 @@ namespace syntax {
         };
 
         while (true) {
-            auto [symbol, value, current, type] = mouth_.expand();
-            if (value.empty()) {
+            auto [symbol, values, current, category] = mouth_.expand();
+            if (values.empty()) {
                 flush();
                 Logger::log(Logger::Type::Parser, Logger::Level::Debug, "Parser reached end of expansion stream");
                 break;
             }
 
-            if (symbol < handlers_.size() && handlers_[symbol]) {
+            if (symbol < handlers.size() && handlers[symbol]) {
                 flush();
                 Logger::fmt(Logger::Type::Parser, Logger::Level::Debug,
-                            "Dispatching custom node handler for text {} ('{}')", symbol, value);
-                if (Node* node = handlers_[symbol](*this)) {
+                            "Dispatching custom node handler for text {} ('{}')", symbol, values);
+                if (Node* node = handlers[symbol](*this)) {
                     nodes.push_back(node);
                 }
                 continue;
@@ -61,19 +61,19 @@ namespace syntax {
             if (symbol == paragraph) {
                 flush();
                 Logger::fmt(Logger::Type::Parser, Logger::Level::Debug,
-                            "Constructed Paragraph node at line {} col {}", current.line, current.column);
-                nodes.push_back(arena_.compose<Node>(Node::Type::Paragraph, value, current, memory::Slice<Node*>{}));
+                            "Constructed Paragraph node at line {} column {}", current.line, current.column);
+                nodes.push_back(arena_.compose<Node>(Node::Type::Paragraph, values, current, memory::Slice<Node*>{}));
                 continue;
             }
 
-            if (type == CatCodes::Type::Escape && symbol >= handlers_.size()) {
+            if (category == CatCodes::Category::Escape && symbol >= handlers.size()) {
                 flush();
-                const std::string message = "Undefined macro or unhandled command primitive: " + std::string(value);
+                const std::string message = "Undefined macro or unhandled command primitive: " + std::string(values);
 
                 Logger::fmt(Logger::Type::Parser, Logger::Level::Error,
-                            "Parsing error at line {} col {}: {}", current.line, current.column, message);
+                            "Parsing error at line {} column {}: {}", current.line, current.column, message);
 
-                mouth_.tracebacks().emplace_back(
+                this->tracebacks_.emplace_back(
                     Traceback::Type::Macro,
                     current,
                     message
@@ -84,18 +84,17 @@ namespace syntax {
             if (buffer.empty()) {
                 position = current;
             }
-            buffer += value;
+            buffer += values;
         }
 
-        if (!mouth_.tracebacks().empty()) {
+        if (!this->tracebacks_.empty()) {
             Logger::fmt(Logger::Type::Parser, Logger::Level::Warning,
-                        "Parse pass completed with {} traceback error(s) recorded", mouth_.tracebacks().size());
+                        "Parse pass completed with {} traceback error(s) recorded", this->tracebacks_.size());
 
-            std::cerr << "[Parser Traceback Log]\n";
-            for (const auto& traceback : mouth_.tracebacks()) {
-                const std::string formatted = traceback.format();
-                Logger::log(Logger::Type::Parser, Logger::Level::Error, formatted);
-                std::cerr << formatted << "\n";
+            for (const auto& traceback : this->tracebacks_) {
+                const std::string message = traceback.format();
+                Logger::log(Logger::Type::Parser, Logger::Level::Error, message);
+                std::cerr << message << "\n";
             }
         } else {
             Logger::log(Logger::Type::Parser, Logger::Level::Informative, "Parse pass completed cleanly with zero errors");
@@ -116,12 +115,12 @@ namespace syntax {
 
     void Parser::bind(const Symbol symbol, Handler handler) {
         const auto size = static_cast<std::size_t>(symbol) + 1;
-        if (symbol >= handlers_.size()) {
-            handlers_.resize(std::max<std::size_t>(size, handlers_.size() * 2));
+        if (symbol >= handlers.size()) {
+            handlers.resize(std::max<std::size_t>(size, handlers.size() * 2));
         }
         Logger::fmt(Logger::Type::Parser, Logger::Level::Debug,
                     "Bound custom AST node handler for text {}", symbol);
-        handlers_[symbol] = std::move(handler);
+        handlers[symbol] = std::move(handler);
     }
 
 }

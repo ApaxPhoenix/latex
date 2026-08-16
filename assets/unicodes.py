@@ -36,8 +36,8 @@ matches = re.findall(pattern, data)
 symbols = {}
 for code, name, kind in matches:
     if name not in symbols:
-        type_name = mapping.get(kind.lower(), "Ordinary")
-        symbols[name] = (code.upper(), type_name)
+        category_name = mapping.get(kind.lower(), "Ordinary")
+        symbols[name] = (code.upper(), category_name)
 
 with open("unicodes.gperf", "w", encoding="utf-8") as file:
     file.write("%{\n")
@@ -46,9 +46,9 @@ with open("unicodes.gperf", "w", encoding="utf-8") as file:
     file.write("struct Entry {\n")
     file.write("    const char* name;\n")
     file.write("    std::uint32_t codepoint;\n")
-    file.write("    expression::Unicodes::Type type;\n")
+    file.write("    expression::Unicodes::Category category;\n")
     file.write("};\n")
     file.write("%%\n")
-    for name, (code, type_name) in sorted(symbols.items()):
-        file.write(f"{name}, 0x{code}, expression::Unicodes::Type::{type_name}\n")
+    for name, (code, category_name) in sorted(symbols.items()):
+        file.write(f"{name}, 0x{code}, expression::Unicodes::Category::{category_name}\n")
     file.write("%%\n")

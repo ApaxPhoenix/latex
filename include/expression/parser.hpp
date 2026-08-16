@@ -18,7 +18,7 @@ namespace expression {
 
     class Parser {
     public:
-        Parser(syntax::Mouth& mouth, const Unicodes& unicodes, memory::Arena& arena);
+        Parser(syntax::Mouth& mouth, const Unicodes& unicodes, memory::Arena& arena, Style style = Style::Inline);
 
         Node* parse();
         void bind(syntax::Symbol symbol, Node::Type type, int weight = 0, bool right = false, bool structural = false);
@@ -28,6 +28,7 @@ namespace expression {
         syntax::Token advance();
         [[nodiscard]] syntax::Token lookahead() const noexcept;
 
+        Node* sequence(char closing = 0);
         Node* step(int priority = 0);
         Node* atom();
         Node* core();
@@ -38,6 +39,7 @@ namespace expression {
         syntax::Mouth& mouth;
         const Unicodes& unicodes;
         memory::Arena& arena;
+        Style style = Style::Inline;
         syntax::Token current{};
         std::vector<Rule> rules{};
     };

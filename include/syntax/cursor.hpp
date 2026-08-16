@@ -2,9 +2,7 @@
 
 #include "syntax/tokens.hpp"
 
-#include <cstddef>
 #include <span>
-#include <utility>
 #include <vector>
 
 namespace syntax {

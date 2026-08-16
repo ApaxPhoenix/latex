@@ -13,9 +13,9 @@ namespace syntax {
     class Lexer {
     public:
         enum class Type {
-            Newline,
-            Skip,
-            Middle
+            Newline, // State N: Line-start scanning (collapses consecutive newlines into \par)
+            Skip,    // State S: Whitespace suppression following control sequences or spaces
+            Middle   // State M: Standard mid-line token processing
         };
 
         Lexer(std::string_view source, CatCodes& table, Lexicon& lexicon);
@@ -34,7 +34,7 @@ namespace syntax {
             return 1;
         }
 
-        std::string_view source{};
+        std::string_view sources{};
         CatCodes& table;
         Lexicon& lexicon;
         std::size_t offset = 0;

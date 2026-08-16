@@ -4,6 +4,7 @@
 #include "syntax/cursor.hpp"
 #include "semantics/registers.hpp"
 
+#include <cstdint>
 #include <string_view>
 #include <optional>
 
@@ -13,47 +14,55 @@ namespace syntax {
     public:
         static constexpr std::int32_t scale = 65536;
 
-        static std::optional<std::int32_t> integer(Cursor& cursor, const semantics::Registers& registers, const Symbol count) {
+        [[nodiscard]] static std::optional<std::int32_t> integer(Cursor& cursor, const semantics::Registers& registers, const Symbol count) {
             int sign = 1;
+
             while (!cursor.empty()) {
-                if (const Token token = cursor.lookahead(0); token.value == "+") { cursor.advance(); }
-                else if (token.value == "-") { sign = -sign; cursor.advance(); }
-                else break;
+                if (const Token token = cursor.lookahead(0); token.value == "+") {
+                    cursor.advance();
+                } else if (token.value == "-") {
+                    sign = -sign;
+                    cursor.advance();
+                } else {
+                    break;
+                }
             }
 
             if (cursor.empty()) return std::nullopt;
 
-            if (const Token token = cursor.lookahead(0); token.symbol == count) {
+            const Token lead = cursor.lookahead(0);
+
+            if (lead.symbol == count) {
                 cursor.advance();
                 const auto index = integer(cursor, registers, count);
                 if (!index) return std::nullopt;
                 return registers.fetch(semantics::Registers::Type::Count, static_cast<std::size_t>(*index)) * sign;
             }
 
-            if (const Token token = cursor.lookahead(0); token.type == CatCodes::Type::Escape) {
-                const auto val = registers.get(token.symbol);
+            if (lead.type == CatCodes::Category::Escape) {
+                const auto value = registers.get(lead.symbol);
                 cursor.advance();
-                return val * sign;
+                return value * sign;
             }
 
             const Token token = cursor.advance();
             std::int32_t value = 0;
 
             if (token.value.starts_with("'")) {
-                for (const std::string_view text = token.value.substr(1); const char symbol : text) {
-                    if (symbol >= '0' && symbol <= '7') value = value * 8 + (symbol - '0');
+                for (const char symbol : token.value.substr(1)) {
+                    if (symbol >= '0' && symbol <= '7') value = (value << 3) + (symbol - '0');
                     else break;
                 }
             } else if (token.value.starts_with("\"")) {
-                for (const std::string_view text = token.value.substr(1); const char symbol : text) {
-                    if (symbol >= '0' && symbol <= '9') value = value * 16 + (symbol - '0');
-                    else if (symbol >= 'A' && symbol <= 'F') value = value * 16 + (symbol - 'A' + 10);
-                    else if (symbol >= 'a' && symbol <= 'f') value = value * 16 + (symbol - 'a' + 10);
+                for (const char symbol : token.value.substr(1)) {
+                    if (symbol >= '0' && symbol <= '9') value = (value << 4) + (symbol - '0');
+                    else if (symbol >= 'A' && symbol <= 'F') value = (value << 4) + (symbol - 'A' + 10);
+                    else if (symbol >= 'a' && symbol <= 'f') value = (value << 4) + (symbol - 'a' + 10);
                     else break;
                 }
             } else {
                 for (const char symbol : token.value) {
-                    if (symbol >= '0' && symbol <= '9') value = value * 10 + (symbol - '0');
+                    if (symbol >= '0' && symbol <= '9') value = (value * 10) + (symbol - '0');
                     else break;
                 }
             }
@@ -61,7 +70,7 @@ namespace syntax {
             return value * sign;
         }
 
-        static std::optional<std::int32_t> dimension(Cursor& cursor, const semantics::Registers& registers, const Symbol count, const Symbol dimen) {
+        [[nodiscard]] static std::optional<std::int32_t> dimension(Cursor& cursor, const semantics::Registers& registers, const Symbol count, const Symbol dimen) {
             if (!cursor.empty() && cursor.lookahead(0).symbol == dimen) {
                 cursor.advance();
                 const auto index = integer(cursor, registers, count);
@@ -72,38 +81,49 @@ namespace syntax {
             const auto raw = integer(cursor, registers, count);
             if (!raw) return std::nullopt;
 
-            double points = *raw;
+            std::int32_t base = *raw * scale;
+
             if (!cursor.empty() && cursor.lookahead(0).value == ".") {
                 cursor.advance();
                 if (!cursor.empty()) {
                     const Token token = cursor.advance();
-                    double fraction = 0.0;
-                    double divisor = 10.0;
+                    std::int64_t part = 0;
+                    std::int64_t div = 1;
+
                     for (const char symbol : token.value) {
                         if (symbol >= '0' && symbol <= '9') {
-                            fraction += (symbol - '0') / divisor;
-                            divisor *= 10.0;
+                            part = (part * 10) + (symbol - '0');
+                            div *= 10;
+                            if (div >= 100000000) break;
                         } else break;
                     }
-                    points += fraction;
+
+                    if (div > 1) {
+                        base += static_cast<std::int32_t>((part * scale) / div);
+                    }
                 }
             }
 
-            if (cursor.empty()) return static_cast<std::int32_t>(points * scale);
+            if (cursor.empty()) return base;
 
             const Token token = cursor.advance();
-            const std::string_view unit = token.value;
+            return unit(base, token.value);
+        }
 
-            double factor = scale;
-            if (unit == "pt") factor = scale;
-            else if (unit == "pc") factor = scale * 12.0;
-            else if (unit == "in") factor = scale * 72.27;
-            else if (unit == "bp") factor = scale * (72.27 / 72.0);
-            else if (unit == "cm") factor = scale * (72.27 / 2.54);
-            else if (unit == "mm") factor = scale * (72.27 / 25.4);
-            else if (unit == "sp") factor = 1.0;
+    private:
+        [[nodiscard]] static constexpr std::int32_t unit(const std::int32_t base, const std::string_view text) noexcept {
+            if (text.size() != 2) return base;
 
-            return static_cast<std::int32_t>(points * factor);
+            switch (static_cast<std::uint16_t>(text[0]) << 8 | static_cast<std::uint16_t>(text[1])) {
+                case 'p' << 8 | 't': return base;                                                                       // 1 pt
+                case 'p' << 8 | 'c': return base * 12;                                                                  // 1 pc = 12 pt
+                case 'i' << 8 | 'n': return static_cast<std::int32_t>(static_cast<std::int64_t>(base) * 7227 / 100);    // 1 in = 72.27 pt
+                case 'b' << 8 | 'p': return static_cast<std::int32_t>(static_cast<std::int64_t>(base) * 7227 / 7200);   // 1 bp = 72.27/72 pt
+                case 'c' << 8 | 'm': return static_cast<std::int32_t>(static_cast<std::int64_t>(base) * 7227 / 254);    // 1 cm = 72.27/2.54 pt
+                case 'm' << 8 | 'm': return static_cast<std::int32_t>(static_cast<std::int64_t>(base) * 7227 / 2540);   // 1 mm = 72.27/25.4 pt
+                case 's' << 8 | 'p': return base / scale;                                                               // 1 sp
+                default: return base;
+            }
         }
     };
 

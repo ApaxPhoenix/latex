@@ -7,7 +7,7 @@ namespace syntax {
 
     class CatCodes {
     public:
-        enum class Type : std::uint8_t {
+        enum class Category : std::uint8_t {
             Escape,    // Command prefix (default: \)
             Group,     // Scope delimiters (default: { and })
             Shift,     // Math mode toggle (default: $)
@@ -25,52 +25,52 @@ namespace syntax {
         };
 
         constexpr CatCodes() noexcept {
-            entries.fill(Type::Other);
+            entries.fill(Category::Other);
 
             for (int code = 'a'; code <= 'z'; ++code) {
-                entries[static_cast<std::size_t>(code)] = Type::Letter;
+                entries[static_cast<std::size_t>(code)] = Category::Letter;
             }
             for (int code = 'A'; code <= 'Z'; ++code) {
-                entries[static_cast<std::size_t>(code)] = Type::Letter;
+                entries[static_cast<std::size_t>(code)] = Category::Letter;
             }
 
-            entries[static_cast<std::size_t>('\\')] = Type::Escape;
-            entries[static_cast<std::size_t>('{')]  = Type::Group;
-            entries[static_cast<std::size_t>('}')]  = Type::Group;
-            entries[static_cast<std::size_t>('$')]  = Type::Shift;
-            entries[static_cast<std::size_t>('&')]  = Type::Align;
-            entries[static_cast<std::size_t>('#')]  = Type::Parameter;
-            entries[static_cast<std::size_t>('^')]  = Type::Mark;
-            entries[static_cast<std::size_t>('_')]  = Type::Index;
-            entries[static_cast<std::size_t>('%')]  = Type::Comment;
-            entries[static_cast<std::size_t>(' ')]  = Type::Space;
-            entries[static_cast<std::size_t>('\t')] = Type::Space;
-            entries[static_cast<std::size_t>('\n')] = Type::Space;
-            entries[static_cast<std::size_t>('~')]  = Type::Active;
+            entries[static_cast<std::size_t>('\\')] = Category::Escape;
+            entries[static_cast<std::size_t>('{')]  = Category::Group;
+            entries[static_cast<std::size_t>('}')]  = Category::Group;
+            entries[static_cast<std::size_t>('$')]  = Category::Shift;
+            entries[static_cast<std::size_t>('&')]  = Category::Align;
+            entries[static_cast<std::size_t>('#')]  = Category::Parameter;
+            entries[static_cast<std::size_t>('^')]  = Category::Mark;
+            entries[static_cast<std::size_t>('_')]  = Category::Index;
+            entries[static_cast<std::size_t>('%')]  = Category::Comment;
+            entries[static_cast<std::size_t>(' ')]  = Category::Space;
+            entries[static_cast<std::size_t>('\t')] = Category::Space;
+            entries[static_cast<std::size_t>('\n')] = Category::Space;
+            entries[static_cast<std::size_t>('~')]  = Category::Active;
         }
 
-        constexpr void set(const char symbol, const Type category) noexcept {
+        constexpr void set(const char symbol, const Category category) noexcept {
             entries[static_cast<std::size_t>(static_cast<unsigned char>(symbol))] = category;
         }
 
-        [[nodiscard]] constexpr Type get(const char symbol) const noexcept {
+        [[nodiscard]] constexpr Category get(const char symbol) const noexcept {
             return entries[static_cast<std::size_t>(static_cast<unsigned char>(symbol))];
         }
 
         void push() {
-            stack.push_back(entries);
+            stacks.push_back(entries);
         }
 
         void pop() {
-            if (!stack.empty()) {
-                entries = stack.back();
-                stack.pop_back();
+            if (!stacks.empty()) {
+                entries = stacks.back();
+                stacks.pop_back();
             }
         }
 
     private:
-        std::array<Type, 256> entries{};
-        std::vector<std::array<Type, 256>> stack{};
+        std::array<Category, 256> entries{};
+        std::vector<std::array<Category, 256>> stacks{};
     };
 
 }

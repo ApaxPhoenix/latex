@@ -27,12 +27,12 @@ namespace syntax {
 
         [[nodiscard]] Mouth& mouth() const noexcept { return mouth_; }
         [[nodiscard]] memory::Arena& arena() const noexcept { return arena_; }
-        [[nodiscard]] const std::vector<Traceback>& trace() const noexcept { return tracebacks_; }
+        [[nodiscard]] const std::vector<Traceback>& tracebacks() const noexcept { return tracebacks_; }
 
     private:
         Mouth& mouth_;
         memory::Arena& arena_;
-        std::vector<Handler> handlers_{};
+        std::vector<Handler> handlers{};
         std::vector<Traceback> tracebacks_{};
     };
 

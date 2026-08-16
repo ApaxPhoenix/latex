@@ -10,34 +10,28 @@ namespace expression {
 
     class Unicodes {
     public:
-        enum class Type : std::uint8_t {
-            Ordinary,
-            Operator,
-            Binary,
-            Relation,
-            Opening,
-            Closing,
-            Punctuation,
-            Inner,
-            Accent
+        enum class Category : std::uint8_t {
+            Ordinary,    // Standard math symbols, variables, and digits (e.g., x, 1)
+            Operator,    // Prefix operators and functions (e.g., \sum, \sin)
+            Binary,      // Binary operations (e.g., +, \times)
+            Relation,    // Comparison operators (e.g., =, \le)
+            Opening,     // Left delimiters (e.g., (, [)
+            Closing,     // Right delimiters (e.g., ), ])
+            Punctuation, // Punctuation marks (e.g., ,, ;)
+            Inner,       // Enclosed structures like fractions
+            Accent       // Math diacritics (e.g., \hat, \vec)
         };
 
         struct Symbol {
             std::uint32_t codepoint;
-            Type type;
-        };
-
-        struct Entry {
-            const char* name;
-            std::uint32_t codepoint;
-            Type type;
+            Category category;
         };
 
         static const std::uint32_t invalid;
 
         Unicodes();
 
-        void compose(std::string_view name, std::uint32_t codepoint, Type type);
+        void compose(std::string_view name, std::uint32_t codepoint, Category category);
         void dispose(std::string_view name);
         [[nodiscard]] std::optional<Symbol> query(std::string_view name) const noexcept;
 

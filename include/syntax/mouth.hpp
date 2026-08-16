@@ -7,8 +7,8 @@
 #include "semantics/union.hpp"
 #include "memory/arena.hpp"
 
-#include <cstddef>
 #include <functional>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -56,32 +56,27 @@ namespace syntax {
         void undefine(std::string_view name);
         void undefine(Symbol symbol);
 
-        [[nodiscard]] semantics::Union& state() const noexcept { return state_; }
+        [[nodiscard]] semantics::Union& state() const noexcept { return union_; }
         [[nodiscard]] Lexicon& lexicon() const noexcept { return lexicon_; }
         [[nodiscard]] std::vector<Traceback>& tracebacks() noexcept { return tracebacks_; }
         [[nodiscard]] const std::vector<Traceback>& tracebacks() const noexcept { return tracebacks_; }
 
     private:
-        Cursor cursor_;
-        semantics::Union& state_;
+        Cursor cursor;
+        semantics::Union& union_;
         Lexicon& lexicon_;
-        memory::Arena& arena_;
+        memory::Arena& arena;
 
-        Symbol count_{};
-        Symbol dimension_{};
-        Symbol else_{};
-        Symbol fi_{};
-
-        std::vector<Handler> primitives_{};
-        std::vector<Macro> macros_{};
-        std::vector<Record> undo_{};
-        std::vector<std::size_t> marks_{};
+        std::vector<Handler> handler{};
+        std::vector<Macro> macros{};
+        std::vector<Record> records{};
+        std::vector<std::size_t> marks{};
         std::vector<Traceback> tracebacks_{};
 
-        bool suppress_ = false;
-        bool global_ = false;
-        std::size_t depth_ = 0;
-        std::size_t limit_ = 10000;
+        bool suppress = false;
+        bool global = false;
+        std::size_t depth = 0;
+        std::size_t limit = 10000;
     };
 
 }
