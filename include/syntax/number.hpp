@@ -70,8 +70,8 @@ namespace syntax {
             return value * sign;
         }
 
-        [[nodiscard]] static std::optional<std::int32_t> dimension(Cursor& cursor, const semantics::Registers& registers, const Symbol count, const Symbol dimen) {
-            if (!cursor.empty() && cursor.lookahead(0).symbol == dimen) {
+        [[nodiscard]] static std::optional<std::int32_t> dimension(Cursor& cursor, const semantics::Registers& registers, const Symbol count, const Symbol dimension) {
+            if (!cursor.empty() && cursor.lookahead(0).symbol == dimension) {
                 cursor.advance();
                 const auto index = integer(cursor, registers, count);
                 if (!index) return std::nullopt;

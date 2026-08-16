@@ -8,6 +8,7 @@
 #include "layout/typesetter.hpp"
 #include "logger.hpp"
 #include "memory/arena.hpp"
+#include "render/pdf.hpp"
 #include "semantics/union.hpp"
 #include "syntax/cursor.hpp"
 #include "syntax/lexicon.hpp"
@@ -19,7 +20,6 @@
 #include "typography/suite.hpp"
 
 #include <chrono>
-#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -115,10 +115,11 @@ int main(int count, char* args[]) {
     semantics::Union state{};
     memory::Slice<syntax::Node*> nodes{};
 
+    const std::string text = load(input);
+    const std::string_view source = arena.copy(text);
+
     {
         const auto start = std::chrono::high_resolution_clock::now();
-
-        const std::string_view source = arena.copy(load(input));
 
         syntax::Cursor cursor(std::vector<syntax::Token>{});
         syntax::Mouth mouth(std::move(cursor), state, lexicon, arena);
@@ -149,27 +150,23 @@ int main(int count, char* args[]) {
     typography::Suite suite;
 
     {
-        const typography::Font* glyphs = nullptr;
         typography::FontConfig configuration(arena);
         if (const auto settings = root() / "assets" / "fonts" / "aliases.conf"; !configuration.append(settings.string())) {
             Logger::fmt(Logger::Type::Layout, Logger::Level::Warning, "Could not load font configuration from {}", settings.string());
         }
 
-        bool text = suite.load(typography::Suite::Face::Regular, configuration, "text", 12);
-        bool math = suite.load(typography::Suite::Face::Mono, configuration, "equations", 12);
-
-        if (!text) {
+        if (!suite.load(typography::Suite::Face::Regular, configuration, "text", 12)) {
             const auto path = root() / "assets" / "fonts" / "text" / "lmmono12-regular.otf";
-            text = suite.load(typography::Suite::Face::Regular, path.string(), 12);
+            suite.load(typography::Suite::Face::Regular, path.string(), 12);
         }
 
-        if (!math) {
+        if (!suite.load(typography::Suite::Face::Mono, configuration, "equations", 12)) {
             const auto path = root() / "assets" / "fonts" / "equation" / "NewCMMath-Regular.otf";
-            math = suite.load(typography::Suite::Face::Mono, path.string(), 12);
+            suite.load(typography::Suite::Face::Mono, path.string(), 12);
         }
 
         words = suite.fetch(typography::Suite::Face::Regular);
-        glyphs = suite.fetch(typography::Suite::Face::Mono);
+        const auto* glyphs = suite.fetch(typography::Suite::Face::Mono);
 
         if (!words || !words->fetch()) {
             Logger::log(Logger::Type::Layout, Logger::Level::Error, "Failed to initialize 'text' font face");
@@ -239,17 +236,31 @@ int main(int count, char* args[]) {
     }
 
     std::size_t pages = 0;
+    memory::Slice<layout::Pager::Page> items{};
 
     {
-        constexpr std::string_view phrase = "The quick brown fox jumps over the lazy dog";
         layout::Pager pager(arena, layout::Pager::Configuration{.target = 500.0f});
         layout::Document document(arena, pager, shaper);
         document.paper(612.0f, 792.0f);
         document.margin(54.0f, 54.0f, 54.0f, 54.0f);
 
-        document.append(*words, phrase);
-        const auto list = document.split();
-        pages = list.size();
+        document.append(*words, source);
+        items = document.split();
+        pages = items.size();
+    }
+
+    const std::filesystem::path target = input.parent_path() / "main.pdf";
+
+    if (composition) {
+        memory::Slice<layout::Node*> stack = arena.allocate<layout::Node*>(1);
+        stack[0] = composition;
+        render::Pdf::compose(stack, target.string());
+    } else if (!items.empty()) {
+        memory::Slice<layout::Node*> list = arena.allocate<layout::Node*>(items.size());
+        for (std::size_t index = 0; index < items.size(); ++index) {
+            list[index] = items[index].nodes.empty() ? nullptr : items[index].nodes[0];
+        }
+        render::Pdf::compose(list, target.string());
     }
 
     std::cout << "Parse Time: " << parsed << " us (" << (parsed / 1000.0) << " ms)\n";
@@ -257,7 +268,8 @@ int main(int count, char* args[]) {
     std::cout << "Root Size: " << size.width << " x " << size.height << "\n";
     std::cout << "Parsed Nodes: " << nodes.size() << "\n";
     std::cout << "Has Composition Box: " << (composition != nullptr ? "Yes" : "No") << "\n";
-    std::cout << "Paginated Pages: " << pages << "\n\n";
+    std::cout << "Paginated Pages: " << pages << "\n";
+    std::cout << "Generated PDF: " << target.string() << "\n\n";
 
     print(*parent);
 
