@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
-#include <new>
+#include <array>
 
 namespace typography {
 
@@ -14,30 +14,27 @@ namespace typography {
         if (pattern.empty()) return;
 
         Node* current = root;
-        std::uint8_t buffer[64] = {0};
-        std::size_t count = 1;
+        std::array<std::uint8_t, 64> buffer{};
+        std::size_t count = 1uz;
 
-        std::size_t offset = 0;
-        while (offset < pattern.size()) {
+        for (std::size_t offset = 0uz; offset < pattern.size(); ++offset) {
             if (const char symbol = pattern[offset]; symbol >= '0' && symbol <= '9') {
-                buffer[count - 1] = static_cast<std::uint8_t>(symbol - '0');
+                buffer[count - 1uz] = static_cast<std::uint8_t>(symbol - '0');
             } else {
-                if (auto next = current->children.find(symbol); next == current->children.end()) {
-                    auto* child = memory.compose<Node>();
-                    current->children[symbol] = child;
-                    current = child;
-                } else {
-                    current = next->second;
+                auto [iterator, inserted] = current->children.try_emplace(symbol, nullptr);
+                if (inserted) {
+                    iterator->second = memory.compose<Node>();
                 }
-                if (count < 64) {
+                current = iterator->second;
+
+                if (count < 64uz) {
                     buffer[count] = 0;
-                    count++;
+                    ++count;
                 }
             }
-            ++offset;
         }
 
-        current->levels.assign(buffer, buffer + count);
+        current->levels.assign(buffer.begin(), buffer.begin() + count);
     }
 
     void Hyphenator::load(const std::string_view pattern) const noexcept {
@@ -62,41 +59,39 @@ namespace typography {
     }
 
     std::vector<std::uint8_t> Hyphenator::analyze(const std::string_view word) const noexcept {
-        if (word.size() < 3) return {};
+        if (word.size() < 3uz) return {};
 
         const std::size_t length = word.size();
-        const std::size_t total = length + 2;
+        const std::size_t total = length + 2uz;
 
-        char scratch[128];
-        char* prepared = (total <= 128) ? scratch : new (std::nothrow) char[total];
+        std::array<char, 128> scratch{};
+        char* prepared = (total <= scratch.size()) ? scratch.data() : static_cast<char*>(memory.allocate(total, alignof(char)));
         if (!prepared) return {};
 
         prepared[0] = '.';
-        for (std::size_t outer = 0; outer < length; ++outer) {
+        for (std::size_t outer = 0uz; outer < length; ++outer) {
             const char letter = word[outer];
-            prepared[outer + 1] = (letter >= 'A' && letter <= 'Z') ? static_cast<char>(letter + 32) : letter;
+            prepared[outer + 1uz] = (letter >= 'A' && letter <= 'Z') ? static_cast<char>(letter + 32) : letter;
         }
-        prepared[total - 1] = '.';
+        prepared[total - 1uz] = '.';
 
-        std::uint8_t storage[128];
-        std::uint8_t* levels = (total + 1 <= 128) ? storage : new (std::nothrow) std::uint8_t[total + 1];
-        if (!levels) {
-            if (prepared != scratch) delete[] prepared;
-            return {};
-        }
-        std::memset(levels, 0, (total + 1) * sizeof(std::uint8_t));
+        std::array<std::uint8_t, 128> storage{};
+        std::uint8_t* levels = (total + 1uz <= storage.size()) ? storage.data() : static_cast<std::uint8_t*>(memory.allocate(total + 1uz, alignof(std::uint8_t)));
+        if (!levels) return {};
 
-        for (std::size_t outer = 0; outer < total; ++outer) {
+        std::memset(levels, 0, (total + 1uz) * sizeof(std::uint8_t));
+
+        for (std::size_t outer = 0uz; outer < total; ++outer) {
             const Node* current = root;
             for (std::size_t inner = outer; inner < total; ++inner) {
-                const auto next = current->children.find(prepared[inner]);
-                if (next == current->children.end()) break;
+                const auto iterator = current->children.find(prepared[inner]);
+                if (iterator == current->children.end()) break;
 
-                current = next->second;
+                current = iterator->second;
 
-                if (const auto count = current->levels.size(); count > 0) {
+                if (const auto count = current->levels.size(); count > 0uz) {
                     const std::uint8_t* values = current->levels.data();
-                    for (std::size_t offset = 0; offset < count; ++offset) {
+                    for (std::size_t offset = 0uz; offset < count; ++offset) {
                         if (const std::size_t index = outer + offset; index <= total && values[offset] > levels[index]) {
                             levels[index] = values[offset];
                         }
@@ -107,14 +102,11 @@ namespace typography {
 
         std::vector<std::uint8_t> result(length, 0);
 
-        for (std::size_t outer = 3; outer < total - 2; ++outer) {
+        for (std::size_t outer = 3uz; outer < total - 2uz; ++outer) {
             if (levels[outer] & 1) {
-                result[outer - 2] = 1;
+                result[outer - 2uz] = 1;
             }
         }
-
-        if (prepared != scratch) delete[] prepared;
-        if (levels != storage) delete[] levels;
 
         return result;
     }

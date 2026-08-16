@@ -20,8 +20,8 @@ namespace syntax {
 
         struct Parameter {
             bool optional = false;
-            std::vector<Token> fallback{};
-            std::vector<Token> delimiter{};
+            std::vector<Token> fallbacks{};
+            std::vector<Token> delimiters{};
         };
 
         struct Macro {
@@ -32,7 +32,7 @@ namespace syntax {
 
         struct Record {
             Symbol symbol = kInvalidSymbol;
-            Macro macro{};
+            Macro macros{};
             bool active = false;
         };
 

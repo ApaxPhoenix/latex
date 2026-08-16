@@ -6,9 +6,9 @@
 namespace semantics {
 
     void Registers::push() {
-        marks.push_back(undo.size());
+        marks.push_back(entries.size());
         Logger::fmt(Logger::Type::Semantics, Logger::Level::Debug,
-                    "Pushed register scope checkpoint at undo index {}", undo.size());
+                    "Pushed register scope checkpoint at entries index {}", entries.size());
     }
 
     void Registers::pop() {
@@ -21,10 +21,10 @@ namespace semantics {
         marks.pop_back();
 
         using enum Type;
-        const auto count = undo.size() - mark;
+        const auto count = entries.size() - mark;
         for (std::size_t index = 0uz; index < count; ++index) {
-            const auto [type, slot, value] = undo.back();
-            undo.pop_back();
+            const auto [type, slot, value] = entries.back();
+            entries.pop_back();
 
             switch (type) {
                 case Count:     counts[slot] = value; break;
@@ -45,7 +45,7 @@ namespace semantics {
         }
 
         if (!global && !marks.empty()) {
-            undo.push_back({type, index, fetch(type, index)});
+            entries.push_back({type, index, fetch(type, index)});
         }
 
         using enum Type;

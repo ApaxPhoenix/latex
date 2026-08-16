@@ -6,7 +6,6 @@
 #include "typography/feature.hpp"
 #include "typography/font.hpp"
 
-#include <hb.h>
 #include <string_view>
 
 namespace typography {

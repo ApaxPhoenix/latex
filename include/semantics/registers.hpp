@@ -1,8 +1,8 @@
 #pragma once
 
 #include "syntax/tokens.hpp"
+
 #include <cstdint>
-#include <cstddef>
 #include <array>
 #include <vector>
 #include <unordered_map>
@@ -40,7 +40,7 @@ namespace semantics {
         std::array<std::int32_t, 256> counts{};
         std::array<std::int32_t, 256> dimensions{};
         std::array<std::int32_t, 256> glues{};
-        std::vector<Entry> undo{};
+        std::vector<Entry> entries{};
         std::vector<std::size_t> marks{};
         std::unordered_map<syntax::Symbol, Target> aliases{};
     };

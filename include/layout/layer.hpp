@@ -1,68 +1,64 @@
 #pragma once
 
+#include <vector>
 #include "layout/grid.hpp"
 #include "layout/node.hpp"
 #include "memory/slice.hpp"
-
-#include <vector>
 
 namespace layout {
 
     class Layer {
     public:
-        enum class Type : std::uint8_t {
+        enum class Type {
             Block,
-            Span,
-            Glyph,
-            Raster,
-            Group,
+            Inline,
             Grid
         };
 
         struct Edge {
-            float left = 0.0f;
-            float right = 0.0f;
-            float top = 0.0f;
-            float bottom = 0.0f;
+            float left{0.0f};
+            float right{0.0f};
+            float top{0.0f};
+            float bottom{0.0f};
         };
 
-        explicit Layer(Type value) noexcept;
+        explicit Layer(Type value = Type::Block) noexcept;
 
         void type(Type value) noexcept;
-        [[nodiscard]] Type type() const noexcept;
+        Type type() const noexcept;
 
         void nodes(memory::Slice<Node> slice) noexcept;
-        [[nodiscard]] memory::Slice<Node> nodes() const noexcept;
+        memory::Slice<Node> nodes() const noexcept;
 
         void attach(Layer* child) noexcept;
-        [[nodiscard]] const std::vector<Layer*>& children() const noexcept;
+        const std::vector<Layer*>& children() const noexcept;
 
         void padding(Edge space) noexcept;
-        [[nodiscard]] Edge padding() const noexcept;
+        Edge padding() const noexcept;
 
         void margin(Edge space) noexcept;
-        [[nodiscard]] Edge margin() const noexcept;
+        Edge margin() const noexcept;
 
-        [[nodiscard]] Grid& grid() noexcept;
-        [[nodiscard]] const Grid& grid() const noexcept;
+        Grid& grid() noexcept;
+        const Grid& grid() const noexcept;
 
         Node::Size measure(Node::Size boundary) noexcept;
         void layout(Node::Point origin, Node::Size size) noexcept;
 
-        [[nodiscard]] Node::Point origin() const noexcept;
-        [[nodiscard]] Node::Size size() const noexcept;
-        [[nodiscard]] Node::Size bounds() const noexcept;
+        Node::Point origin() const noexcept;
+        Node::Size size() const noexcept;
+        Node::Size bounds() const noexcept;
 
     private:
-        Type item = Type::Block;
+        Type type_{Type::Block};
+        memory::Slice<Node> elements{};
+        std::vector<Layer*> list{};
         Edge padding_{};
         Edge margin_{};
+        Grid table{};
         Node::Point position{};
         Node::Size extent{};
         Node::Size limit{};
-        memory::Slice<Node> elements{};
-        std::vector<Layer*> list{};
-        Grid table{};
     };
 
 }

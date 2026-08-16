@@ -1,7 +1,6 @@
 #pragma once
 
 #include <hb.h>
-#include <cstdint>
 #include <string_view>
 
 namespace typography {

@@ -1,5 +1,6 @@
 #include "layout/document.hpp"
-#include "logger.hpp"
+#include "layout/breaker.hpp"
+#include <algorithm>
 
 namespace layout {
 
@@ -9,41 +10,41 @@ namespace layout {
     Document::Document(memory::Arena& arena, Pager& pager, typography::Shaper& shaper, const Configuration& configuration) noexcept
         : arena(arena), pager(pager), shaper(shaper), configuration_(configuration) {}
 
-    void Document::margin(const float left, const float right, const float top, const float bottom) noexcept {
+    void Document::margin(float left, float right, float top, float bottom) noexcept {
         configuration_.left = left;
         configuration_.right = right;
         configuration_.top = top;
         configuration_.bottom = bottom;
     }
 
-    void Document::paper(const float width, const float height) noexcept {
+    void Document::paper(float width, float height) noexcept {
         configuration_.width = width;
         configuration_.height = height;
     }
 
-    void Document::grid(const std::int32_t columns, const float gap) noexcept {
+    void Document::grid(std::int32_t columns, float gap) noexcept {
         configuration_.columns = columns;
         configuration_.gap = gap;
     }
 
-    void Document::font(const float size, const float leading) noexcept {
+    void Document::font(float size, float leading) noexcept {
         configuration_.size = size;
         configuration_.leading = leading;
     }
 
-    void Document::indent(const float value) noexcept {
+    void Document::indent(float value) noexcept {
         configuration_.indent = value;
     }
 
-    void Document::spacing(const float value) noexcept {
+    void Document::spacing(float value) noexcept {
         configuration_.spacing = value;
     }
 
-    void Document::gap(const float value) noexcept {
+    void Document::gap(float value) noexcept {
         configuration_.gap = value;
     }
 
-    void Document::align(const std::int32_t value) noexcept {
+    void Document::align(std::int32_t value) noexcept {
         configuration_.align = value;
     }
 
@@ -56,85 +57,120 @@ namespace layout {
     }
 
     float Document::measure() const noexcept {
-        float total{0.0f};
-        for (auto* node : lines) {
-            if (!node) continue;
-            if (node->type() == Node::Type::Box) {
-                total += node->box().height;
-            } else if (node->type() == Node::Type::Glyph) {
-                total += node->glyph().height;
-            } else if (node->type() == Node::Type::Rule) {
-                total += node->rule().height;
-            } else if (node->type() == Node::Type::Glue) {
-                total += node->glue().width;
-            }
+        float width = configuration_.width - (configuration_.left + configuration_.right);
+        if (configuration_.columns > 1) {
+            const float gap = configuration_.gap * static_cast<float>(configuration_.columns - 1);
+            width = (width - gap) / static_cast<float>(configuration_.columns);
         }
-        return total;
+        return std::max(0.0f, width);
     }
 
     const std::vector<Node*>& Document::content() const noexcept {
         return lines;
     }
 
-    std::vector<Node*> Document::tokenize(const typography::Font& font, const std::string_view text) const {
-        const auto slice = shaper.shape(font, text);
-        if (slice.empty() || !slice.data) return {};
+    std::vector<Node*> Document::tokenize(const typography::Font& font, std::string_view text) const {
+        std::vector<Node*> nodes;
 
-        for (std::size_t index = 0; index + 1 < slice.size(); ++index) {
-            if (slice[index]) {
-                slice[index]->next(slice[index + 1]);
+        for (const char letter : text) {
+            if (letter == ' ') {
+                Node* const node = arena.compose<Node>();
+                const Node::Glue glue{
+                    .width = configuration_.size * 0.25f,
+                    .stretch = configuration_.size * 0.125f,
+                    .shrink = configuration_.size * 0.083f,
+                    .stretchorder = Node::Order::Normal,
+                    .shrinkorder = Node::Order::Normal
+                };
+                node->glue(glue);
+                nodes.push_back(node);
+            } else if (letter == '\n') {
+                Node* const node = arena.compose<Node>();
+                constexpr Node::Break penalty{
+                    .penalty = Node::Penalty{-10000}
+                };
+                node->breaks(penalty);
+                nodes.push_back(node);
+            } else {
+                Node* const node = arena.compose<Node>();
+                const Node::Glyph glyph{
+                    .width = configuration_.size * 0.6f,
+                    .height = configuration_.size * 0.8f,
+                    .depth = configuration_.size * 0.2f,
+                    .code = static_cast<std::uint32_t>(letter)
+                };
+                node->glyph(glyph);
+                nodes.push_back(node);
             }
         }
-        return {slice.data, slice.data + slice.size()};
+
+        return nodes;
     }
 
-    void Document::append(const typography::Font& font, const std::string_view text) {
-        if (auto tokens = tokenize(font, text); !tokens.empty()) {
-            if (!lines.empty() && lines.back()) {
-                lines.back()->next(tokens.front());
+    void Document::append(const typography::Font& font, std::string_view text) {
+        const auto tokens = tokenize(font, text);
+        lines.insert(lines.end(), tokens.begin(), tokens.end());
+    }
+
+    void Document::append(Node* node) {
+        if (node) {
+            lines.push_back(node);
+        }
+    }
+
+    void Document::append(memory::Slice<Node*> slice) {
+        for (std::size_t index = 0; index < slice.size(); ++index) {
+            if (slice[index]) {
+                lines.push_back(slice[index]);
             }
-            lines.insert(lines.end(), tokens.begin(), tokens.end());
         }
     }
 
     void Document::newline() {
-        Node* node = arena.compose<Node>(Node::Type::Glue);
-        node->glue({
-            .width = configuration_.leading
-        });
-
-        if (!lines.empty() && lines.back()) {
-            lines.back()->next(node);
-        }
+        Node* const node = arena.compose<Node>();
+        constexpr Node::Break penalty{
+            .penalty = Node::Penalty{-10000}
+        };
+        node->breaks(penalty);
         lines.push_back(node);
     }
 
     memory::Slice<Node*> Document::compose() const {
-        Logger::fmt(Logger::Type::Layout, Logger::Level::Informative,
-                    "Composing document slice across {} line node(s)", lines.size());
-        const memory::Slice<Node*> slice = arena.allocate<Node*>(lines.size());
-        for (std::size_t index = 0; index < lines.size(); ++index) {
-            slice.data[index] = lines[index];
-        }
-        return slice;
+        if (lines.empty()) return memory::Slice<Node*>{};
+
+        const Breaker::Configuration config{
+            .target = measure(),
+            .leading = configuration_.leading,
+            .tolerance = 2000.0,
+            .penalty = 0.0,
+            .skip = configuration_.spacing,
+            .limit = 0.0
+        };
+
+        Breaker breaker(arena, config);
+        const memory::Slice<Node*> slice(const_cast<Node**>(lines.data()), lines.size());
+        return breaker.compose(slice);
     }
 
-    memory::Slice<Page> Document::split() const {
-        if (lines.empty()) {
-            Logger::log(Logger::Type::Layout, Logger::Level::Warning, "Document split requested on empty content stream");
-            return {};
+    memory::Slice<Document::Page> Document::split() const {
+        const memory::Slice<Node*> items = compose();
+        if (items.empty()) return memory::Slice<Document::Page>{};
+
+        for (std::size_t index = 0; index + 1 < items.size(); ++index) {
+            items[index]->next(items[index + 1]);
         }
-        Logger::fmt(Logger::Type::Layout, Logger::Level::Informative,
-                    "Splitting document stream starting from head node");
-        return pager.paginate(lines.front(), {
-            .height = configuration_.height - configuration_.top - configuration_.bottom,
-            .width = configuration_.width - configuration_.left - configuration_.right,
+        items[items.size() - 1]->next(nullptr);
+
+        const Pager::Context context{
+            .height = configuration_.height - (configuration_.top + configuration_.bottom),
+            .width = measure(),
             .skip = configuration_.spacing
-        });
+        };
+
+        return pager.paginate(items[0], context);
     }
 
     void Document::reset() noexcept {
-        Logger::log(Logger::Type::Layout, Logger::Level::Debug, "Resetting document lines and pages");
         lines.clear();
         pages.clear();
     }

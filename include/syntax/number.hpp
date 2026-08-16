@@ -18,9 +18,9 @@ namespace syntax {
             int sign = 1;
 
             while (!cursor.empty()) {
-                if (const Token token = cursor.lookahead(0); token.value == "+") {
+                if (const Token token = cursor.lookahead(0); token.values == "+") {
                     cursor.advance();
-                } else if (token.value == "-") {
+                } else if (token.values == "-") {
                     sign = -sign;
                     cursor.advance();
                 } else {
@@ -39,7 +39,7 @@ namespace syntax {
                 return registers.fetch(semantics::Registers::Type::Count, static_cast<std::size_t>(*index)) * sign;
             }
 
-            if (lead.type == CatCodes::Category::Escape) {
+            if (lead.category == CatCodes::Category::Escape) {
                 const auto value = registers.get(lead.symbol);
                 cursor.advance();
                 return value * sign;
@@ -48,20 +48,20 @@ namespace syntax {
             const Token token = cursor.advance();
             std::int32_t value = 0;
 
-            if (token.value.starts_with("'")) {
-                for (const char symbol : token.value.substr(1)) {
+            if (token.values.starts_with("'")) {
+                for (const char symbol : token.values.substr(1)) {
                     if (symbol >= '0' && symbol <= '7') value = (value << 3) + (symbol - '0');
                     else break;
                 }
-            } else if (token.value.starts_with("\"")) {
-                for (const char symbol : token.value.substr(1)) {
+            } else if (token.values.starts_with("\"")) {
+                for (const char symbol : token.values.substr(1)) {
                     if (symbol >= '0' && symbol <= '9') value = (value << 4) + (symbol - '0');
                     else if (symbol >= 'A' && symbol <= 'F') value = (value << 4) + (symbol - 'A' + 10);
                     else if (symbol >= 'a' && symbol <= 'f') value = (value << 4) + (symbol - 'a' + 10);
                     else break;
                 }
             } else {
-                for (const char symbol : token.value) {
+                for (const char symbol : token.values) {
                     if (symbol >= '0' && symbol <= '9') value = (value * 10) + (symbol - '0');
                     else break;
                 }
@@ -83,14 +83,14 @@ namespace syntax {
 
             std::int32_t base = *raw * scale;
 
-            if (!cursor.empty() && cursor.lookahead(0).value == ".") {
+            if (!cursor.empty() && cursor.lookahead(0).values == ".") {
                 cursor.advance();
                 if (!cursor.empty()) {
                     const Token token = cursor.advance();
                     std::int64_t part = 0;
                     std::int64_t div = 1;
 
-                    for (const char symbol : token.value) {
+                    for (const char symbol : token.values) {
                         if (symbol >= '0' && symbol <= '9') {
                             part = (part * 10) + (symbol - '0');
                             div *= 10;
@@ -107,7 +107,7 @@ namespace syntax {
             if (cursor.empty()) return base;
 
             const Token token = cursor.advance();
-            return unit(base, token.value);
+            return unit(base, token.values);
         }
 
     private:

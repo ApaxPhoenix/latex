@@ -1,228 +1,115 @@
 #include "layout/layer.hpp"
-
 #include <algorithm>
 
 namespace layout {
 
-    Layer::Layer(const Type value) noexcept : item(value) {}
+    Layer::Layer(const Type value) noexcept
+        : type_(value) {}
 
-    void Layer::type(const Type value) noexcept {
-        item = value;
-    }
+    void Layer::type(const Type value) noexcept { type_ = value; }
+    Layer::Type Layer::type() const noexcept { return type_; }
 
-    Layer::Type Layer::type() const noexcept {
-        return item;
-    }
-
-    void Layer::nodes(const memory::Slice<Node> slice) noexcept {
-        elements = slice;
-    }
-
-    memory::Slice<Node> Layer::nodes() const noexcept {
-        return elements;
-    }
+    void Layer::nodes(memory::Slice<Node> slice) noexcept { elements = slice; }
+    memory::Slice<Node> Layer::nodes() const noexcept { return elements; }
 
     void Layer::attach(Layer* child) noexcept {
         if (child) list.push_back(child);
     }
 
-    const std::vector<Layer*>& Layer::children() const noexcept {
-        return list;
-    }
+    const std::vector<Layer*>& Layer::children() const noexcept { return list; }
 
-    void Layer::padding(const Edge space) noexcept {
-        padding_ = space;
-    }
+    void Layer::padding(Edge space) noexcept { padding_ = space; }
+    Layer::Edge Layer::padding() const noexcept { return padding_; }
 
-    Layer::Edge Layer::padding() const noexcept {
-        return padding_;
-    }
+    void Layer::margin(Edge space) noexcept { margin_ = space; }
+    Layer::Edge Layer::margin() const noexcept { return margin_; }
 
-    void Layer::margin(const Edge space) noexcept {
-        margin_ = space;
-    }
+    Grid& Layer::grid() noexcept { return table; }
+    const Grid& Layer::grid() const noexcept { return table; }
 
-    Layer::Edge Layer::margin() const noexcept {
-        return margin_;
-    }
+    Node::Point Layer::origin() const noexcept { return position; }
+    Node::Size Layer::size() const noexcept { return extent; }
+    Node::Size Layer::bounds() const noexcept { return limit; }
 
-    Grid& Layer::grid() noexcept {
-        return table;
-    }
+    Node::Size Layer::measure(Node::Size boundary) noexcept {
+        float width = boundary.width - (padding_.left + padding_.right + margin_.left + margin_.right);
+        float height = boundary.height - (padding_.top + padding_.bottom + margin_.top + margin_.bottom);
+        width = std::max(0.0f, width);
+        height = std::max(0.0f, height);
 
-    const Grid& Layer::grid() const noexcept {
-        return table;
-    }
+        Node::Size size{0.0f, 0.0f};
 
-    Node::Size Layer::measure(const Node::Size boundary) noexcept {
-        limit = boundary;
-        const Node::Size target{
-            std::max(0.0f, boundary.width - padding_.left - padding_.right - margin_.left - margin_.right),
-            std::max(0.0f, boundary.height - padding_.top - padding_.bottom - margin_.top - margin_.bottom)
-        };
-
-        float span = 0.0f;
-        float tall = 0.0f;
-        float deep = 0.0f;
-
-        if (item == Type::Grid) {
-            span = table.measure(target).width;
-            tall = table.measure(target).height;
-        } else if (item == Type::Block) {
-            for (auto* child : list) {
-                if (!child) continue;
-                span = std::max(span, child->measure(target).width);
-                tall += child->measure(target).height;
-            }
-            for (const auto& node : elements) {
-                if (node.type() == Node::Type::Box) {
-                    span = std::max(span, node.box().width);
-                    tall += node.box().height + node.box().depth;
-                    deep = std::max(deep, node.box().depth);
-                } else if (node.type() == Node::Type::Rule) {
-                    span = std::max(span, node.rule().width);
-                    tall += node.rule().height + node.rule().depth;
-                    deep = std::max(deep, node.rule().depth);
-                } else if (node.type() == Node::Type::Glue) {
-                    tall += node.glue().width;
-                } else if (node.type() == Node::Type::Kern) {
-                    tall += node.kern().width;
-                } else if (node.type() == Node::Type::Glyph) {
-                    span = std::max(span, node.glyph().width);
-                    tall += node.glyph().height + node.glyph().depth;
-                    deep = std::max(deep, node.glyph().depth);
-                }
-            }
+        if (type_ == Type::Grid) {
+            size = table.measure(Node::Size{width, height});
         } else {
-            for (auto* child : list) {
+            for (Layer* child : list) {
                 if (!child) continue;
-                span += child->measure(target).width;
-                tall = std::max(tall, child->measure(target).height);
-            }
-            for (const auto& node : elements) {
-                if (node.type() == Node::Type::Box) {
-                    span += node.box().width;
-                    tall = std::max(tall, node.box().height);
-                    deep = std::max(deep, node.box().depth);
-                } else if (node.type() == Node::Type::Rule) {
-                    span += node.rule().width;
-                    tall = std::max(tall, node.rule().height);
-                    deep = std::max(deep, node.rule().depth);
-                } else if (node.type() == Node::Type::Glue) {
-                    span += node.glue().width;
-                } else if (node.type() == Node::Type::Kern) {
-                    span += node.kern().width;
-                } else if (node.type() == Node::Type::Glyph) {
-                    span += node.glyph().width;
-                    tall = std::max(tall, node.glyph().height);
-                    deep = std::max(deep, node.glyph().depth);
+                const Node::Size bounds = child->measure(Node::Size{width, height});
+                if (type_ == Type::Block) {
+                    size.width = std::max(size.width, bounds.width);
+                    size.height += bounds.height;
+                } else if (type_ == Type::Inline) {
+                    size.width += bounds.width;
+                    size.height = std::max(size.height, bounds.height);
                 }
             }
         }
 
-        return extent = {
-            span + padding_.left + padding_.right + margin_.left + margin_.right,
-            tall + padding_.top + padding_.bottom + margin_.top + margin_.bottom
+        extent = Node::Size{
+            .width = size.width + padding_.left + padding_.right,
+            .height = size.height + padding_.top + padding_.bottom
         };
+
+        limit = Node::Size{
+            .width = extent.width + margin_.left + margin_.right,
+            .height = extent.height + margin_.top + margin_.bottom
+        };
+
+        return limit;
     }
 
     void Layer::layout(const Node::Point origin, const Node::Size size) noexcept {
-        position = {origin.x + margin_.left, origin.y + margin_.top};
-        extent = size;
+        position = Node::Point{
+            origin.x + margin_.left,
+            origin.y + margin_.top
+        };
 
-        const float width = std::max(0.0f, size.width - padding_.left - padding_.right - margin_.left - margin_.right);
-        const float height = std::max(0.0f, size.height - padding_.top - padding_.bottom - margin_.top - margin_.bottom);
-        const float x = position.x + padding_.left;
-        const float y = position.y + padding_.top;
+        extent = Node::Size{
+            std::max(0.0f, size.width - (margin_.left + margin_.right)),
+            std::max(0.0f, size.height - (margin_.top + margin_.bottom))
+        };
 
-        if (item == Type::Grid) {
-            table.layout({x, y}, {width, height}, {list.data(), list.size()});
-        } else if (item == Type::Block) {
-            float offset = y;
-            for (auto* child : list) {
-                if (!child) continue;
-                child->layout({x, offset}, {width, child->size().height});
-                offset += child->size().height;
-            }
+        limit = size;
+
+        const Node::Point location{
+            position.x + padding_.left,
+            position.y + padding_.top
+        };
+
+        const Node::Size bounds{
+            std::max(0.0f, extent.width - (padding_.left + padding_.right)),
+            std::max(0.0f, extent.height - (padding_.top + padding_.bottom))
+        };
+
+        if (type_ == Type::Grid) {
+            const memory::Slice children(list.data(), list.size());
+            table.layout(location, bounds, children);
         } else {
-            float total = 0.0f;
-            for (const auto& node : elements) {
-                if (node.type() == Node::Type::Box) {
-                    total += node.box().width;
-                } else if (node.type() == Node::Type::Rule) {
-                    total += node.rule().width;
-                } else if (node.type() == Node::Type::Glue) {
-                    total += node.glue().width;
-                } else if (node.type() == Node::Type::Kern) {
-                    total += node.kern().width;
-                } else if (node.type() == Node::Type::Glyph) {
-                    total += node.glyph().width;
-                }
-            }
-            for (auto* child : list) {
-                if (child) total += child->size().width;
-            }
+            Node::Point cursor = location;
 
-            const float delta = width - total;
-            std::uint8_t rank = 0;
-            float flex = 0.0f;
-
-            if (delta != 0.0f) {
-                for (const auto& node : elements) {
-                    if (node.type() == Node::Type::Glue) {
-                        const float stretch = (delta > 0.0f) ? node.glue().stretch : node.glue().shrink;
-                        const auto order = static_cast<std::uint8_t>(node.glue().stretchorder);
-                        if (stretch > 0.0f) {
-                            if (order > rank) {
-                                rank = order;
-                                flex = stretch;
-                            } else if (order == rank) {
-                                flex += stretch;
-                            }
-                        }
-                    }
-                }
-            }
-
-            const float scale = (flex > 0.0f) ? (delta / flex) : 0.0f;
-            float cursor = x;
-
-            for (auto& node : elements) {
-                if (node.type() == Node::Type::Box) {
-                    cursor += node.box().width;
-                } else if (node.type() == Node::Type::Rule) {
-                    cursor += node.rule().width;
-                } else if (node.type() == Node::Type::Glue) {
-                    float advance = node.glue().width;
-                    if (static_cast<std::uint8_t>(node.glue().stretchorder) == rank) {
-                        advance += ((delta > 0.0f) ? node.glue().stretch : node.glue().shrink) * scale;
-                    }
-                    cursor += std::max(0.0f, advance);
-                } else if (node.type() == Node::Type::Kern) {
-                    cursor += node.kern().width;
-                } else if (node.type() == Node::Type::Glyph) {
-                    cursor += node.glyph().width;
-                }
-            }
-
-            for (auto* child : list) {
+            for (Layer* child : list) {
                 if (!child) continue;
-                child->layout({cursor, y}, {child->size().width, height});
-                cursor += child->size().width;
+                const Node::Size box = child->measure(bounds);
+
+                child->layout(cursor, box);
+
+                if (type_ == Type::Block) {
+                    cursor.y += box.height;
+                } else if (type_ == Type::Inline) {
+                    cursor.x += box.width;
+                }
             }
         }
-    }
-
-    Node::Point Layer::origin() const noexcept {
-        return position;
-    }
-
-    Node::Size Layer::size() const noexcept {
-        return extent;
-    }
-
-    Node::Size Layer::bounds() const noexcept {
-        return limit;
     }
 
 }

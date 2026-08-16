@@ -1,13 +1,15 @@
 #include "layout/pager.hpp"
-#include "logger.hpp"
+#include <algorithm>
+#include <cmath>
+#include <vector>
 
 namespace layout {
 
     Pager::Pager(memory::Arena& arena) noexcept
-        : arena_(arena) {}
+        : arena(arena) {}
 
     Pager::Pager(memory::Arena& arena, const Configuration& configuration) noexcept
-        : arena_(arena), configuration_(configuration) {}
+        : arena(arena), configuration_(configuration) {}
 
     void Pager::configure(const Configuration& configuration) noexcept {
         configuration_ = configuration;
@@ -17,138 +19,104 @@ namespace layout {
         return configuration_;
     }
 
-    memory::Slice<Node*> Pager::split(Node* head, const float target) const {
-        if (!head) {
-            return {};
-        }
+    std::int32_t Pager::badness(const float actual, const float target, const float flex) noexcept {
+        const float delta = target - actual;
+        if (delta == 0.0f) return 0;
+        if (flex <= 0.0f) return 10000;
+        const float ratio = delta / flex;
+        if (ratio < -1.0f) return 10000;
+        return static_cast<std::int32_t>(std::min(10000.0f, 100.0f * std::pow(std::abs(ratio), 3.0f)));
+    }
 
-        float sum{0.0f};
-        std::size_t count{0};
+    memory::Slice<Node*> Pager::split(Node* head, float target) const {
+        if (!head) return memory::Slice<Node*>{};
+
+        std::vector<Node*> collected;
+        float accumulated = 0.0f;
         Node* current = head;
 
-        while (current) {
-            float height{0.0f};
+        while (current != nullptr) {
+            float height = 0.0f;
 
             if (current->type() == Node::Type::Box) {
-                height = current->box().height;
-            } else if (current->type() == Node::Type::Rule) {
-                height = current->rule().height;
-            } else if (current->type() == Node::Type::Glyph) {
-                height = current->glyph().height;
+                height = current->box().height + current->box().depth;
             } else if (current->type() == Node::Type::Glue) {
                 height = current->glue().width;
-            } else if (current->type() == Node::Type::Insertion) {
-                height = current->insertion().height;
+            } else if (current->type() == Node::Type::Rule) {
+                height = current->rule().height + current->rule().depth;
             }
 
-            if (sum + height > target && count > 0) {
+            if (accumulated + height > target && !collected.empty()) {
                 break;
             }
 
-            sum += height;
-            ++count;
+            accumulated += height;
+            collected.push_back(current);
             current = current->next();
         }
 
-        if (count == 0) {
-            return {};
+        auto buffer = arena.allocate<Node*>(collected.size());
+        for (std::size_t index = 0; index < collected.size(); ++index) {
+            buffer[index] = collected[index];
         }
-
-        memory::Slice<Node*> slice = arena_.allocate<Node*>(count);
-        current = head;
-        for (std::size_t index = 0; index < count; ++index) {
-            slice[index] = current;
-            current = current->next();
-        }
-
-        return slice;
+        return buffer;
     }
 
-    memory::Slice<Page> Pager::paginate(Node* head, const Context& context) const {
-        if (!head) {
-            Logger::log(Logger::Type::Layout, Logger::Level::Warning, "Pager received null head node");
-            return {};
-        }
+    memory::Slice<Pager::Page> Pager::paginate(Node* head, const Context& context) const {
+        if (!head) return memory::Slice<Page>{};
 
-        const float limit = context.height > 0.0f ? context.height : configuration_.target;
+        const float target = context.height > 0.0f ? context.height : configuration_.target;
+        std::vector<Page> pages;
 
-        std::size_t count{0};
         Node* current = head;
+        std::int32_t index = 0;
 
-        while (current) {
-            auto chunk = split(current, limit);
-            if (chunk.empty()) {
-                break;
-            }
-            ++count;
-            current = chunk[chunk.size() - 1]->next();
-        }
+        while (current != nullptr) {
+            std::vector<Node*> nodes;
+            float height = 0.0f;
 
-        if (count == 0) {
-            Logger::log(Logger::Type::Layout, Logger::Level::Warning, "Pagination generated zero pages");
-            return {};
-        }
-
-        memory::Slice<Page> pages = arena_.allocate<Page>(count);
-        current = head;
-        std::int32_t number{0};
-
-        for (std::size_t index = 0; index < count; ++index) {
-            auto chunk = split(current, limit);
-            if (chunk.empty()) {
-                break;
-            }
-
-            float height{0.0f};
-            float flex{0.0f};
-
-            for (auto* node : chunk) {
-                if (!node) continue;
-                if (node->type() == Node::Type::Box) {
-                    height += node->box().height;
-                } else if (node->type() == Node::Type::Rule) {
-                    height += node->rule().height;
-                } else if (node->type() == Node::Type::Glyph) {
-                    height += node->glyph().height;
-                } else if (node->type() == Node::Type::Glue) {
-                    height += node->glue().width;
-                    flex += node->glue().stretch;
-                } else if (node->type() == Node::Type::Insertion) {
-                    height += node->insertion().height;
+            while (current != nullptr) {
+                float space = 0.0f;
+                if (current->type() == Node::Type::Box) {
+                    space = current->box().height + current->box().depth;
+                } else if (current->type() == Node::Type::Glue) {
+                    space = current->glue().width;
+                } else if (current->type() == Node::Type::Rule) {
+                    space = current->rule().height + current->rule().depth;
                 }
+
+                if (height + space > target && !nodes.empty()) {
+                    if (current->type() == Node::Type::Penalty && current->penalty().value < 0) {
+                        nodes.push_back(current);
+                        height += space;
+                        current = current->next();
+                    }
+                    break;
+                }
+
+                height += space;
+                nodes.push_back(current);
+                current = current->next();
             }
 
-            Page page{};
-            page.nodes = chunk;
-            page.height = height;
-            page.index = number++;
-            page.badness = badness(height, limit, flex);
+            auto buffer = arena.allocate<Node*>(nodes.size());
+            for (std::size_t offset = 0; offset < nodes.size(); ++offset) {
+                buffer[offset] = nodes[offset];
+            }
 
-            pages[index] = page;
-            current = chunk[chunk.size() - 1]->next();
+            pages.push_back(Page{
+                .nodes = buffer,
+                .height = height,
+                .index = index++,
+                .badness = badness(height, target, 20.0f)
+            });
         }
 
-        Logger::fmt(Logger::Type::Layout, Logger::Level::Informative,
-                    "Pager generated {} page(s) (target height={:.2f}pt)",
-                    count, limit);
-
-        return pages;
-    }
-
-    std::int32_t Pager::badness(const float actual, const float target, const float flex) noexcept {
-        if (target <= 0.0f) return 0;
-        const float delta = actual - target;
-        if (delta == 0.0f) return 0;
-
-        const float difference = delta < 0.0f ? -delta : delta;
-        if (flex <= 0.0f) {
-            return 10000;
+        auto buffer = arena.allocate<Page>(pages.size());
+        for (std::size_t offset = 0; offset < pages.size(); ++offset) {
+            buffer[offset] = pages[offset];
         }
-
-        const float ratio = difference / flex;
-        const float cubed = 100.0f * ratio * ratio * ratio;
-
-        return static_cast<std::int32_t>(cubed > 10000.0f ? 10000.0f : cubed);
+        return buffer;
     }
 
 }

@@ -2,39 +2,49 @@
 
 namespace layout {
 
-    void Node::box(const Box& box_) noexcept {
+    void Node::box(const Box& value) noexcept {
         type_ = Type::Box;
-        data.box = box_;
+        data.box = value;
     }
 
-    void Node::glue(const Glue& glue_) noexcept {
+    void Node::glue(const Glue& value) noexcept {
         type_ = Type::Glue;
-        data.glue = glue_;
+        data.glue = value;
     }
 
-    void Node::kern(const Kern& kern_) noexcept {
+    void Node::kern(const Kern& value) noexcept {
         type_ = Type::Kern;
-        data.kern = kern_;
+        data.kern = value;
     }
 
-    void Node::penalty(const Penalty& penalty_) noexcept {
+    void Node::penalty(const Penalty& value) noexcept {
         type_ = Type::Penalty;
-        data.penalty = penalty_;
+        data.penalty = value;
     }
 
-    void Node::rule(const Rule& rule_) noexcept {
+    void Node::rule(const Rule& value) noexcept {
         type_ = Type::Rule;
-        data.rule = rule_;
+        data.rule = value;
     }
 
-    void Node::glyph(const Glyph& glyph_) noexcept {
+    void Node::glyph(const Glyph& value) noexcept {
         type_ = Type::Glyph;
-        data.glyph = glyph_;
+        data.glyph = value;
     }
 
-    void Node::breaks(const Break& breaks_) noexcept {
+    void Node::breaks(const Break& value) noexcept {
         type_ = Type::Break;
-        data.breaks = breaks_;
+        data.breaks = value;
+    }
+
+    void Node::insertion(const Insertion& value) noexcept {
+        type_ = Type::Insertion;
+        data.insertion = value;
+    }
+
+    void Node::whatsit(const Whatsit& value) noexcept {
+        type_ = Type::Whatsit;
+        data.whatsit = value;
     }
 
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "memory/arena.hpp"
+
 #include <cstdint>
 #include <string_view>
 #include <unordered_map>

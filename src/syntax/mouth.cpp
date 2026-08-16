@@ -130,20 +130,20 @@ namespace syntax {
                     if (scope > 0) result.push_back(token);
                 }
             } else {
-                result = parameter.fallback;
+                result = parameter.fallbacks;
             }
-        } else if (!parameter.delimiter.empty()) {
+        } else if (!parameter.delimiters.empty()) {
             std::size_t scope = 0;
             bool matched = false;
 
             while (!this->cursor.empty()) {
                 if (scope == 0) {
-                    auto lookahead = std::views::iota(0uz, parameter.delimiter.size())
+                    auto lookahead = std::views::iota(0uz, parameter.delimiters.size())
                         | std::views::transform([this](const std::size_t offset) { return this->cursor.lookahead(offset).symbol; });
 
-                    if (auto delimiter = parameter.delimiter | std::views::transform(&Token::symbol); std::ranges::equal(lookahead, delimiter)) {
+                    if (auto delimiters = parameter.delimiters | std::views::transform(&Token::symbol); std::ranges::equal(lookahead, delimiters)) {
                         matched = true;
-                        for (std::size_t index = 0; index < parameter.delimiter.size(); ++index) {
+                        for (std::size_t index = 0; index < parameter.delimiters.size(); ++index) {
                             this->cursor.advance();
                         }
                         break;

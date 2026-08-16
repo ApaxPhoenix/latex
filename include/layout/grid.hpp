@@ -20,12 +20,12 @@ namespace layout {
         void row(float size, float weight = 0.0f) noexcept;
         void gap(float space) noexcept;
 
-        [[nodiscard]] Node::Size measure(Node::Size boundary) const noexcept;
+        Node::Size measure(Node::Size boundary) const noexcept;
         void layout(Node::Point origin, Node::Size size, memory::Slice<Layer*> list) const noexcept;
 
     private:
-        std::vector<Track> columns;
-        std::vector<Track> rows;
+        std::vector<Track> columns{};
+        std::vector<Track> rows{};
         float spacing{0.0f};
     };
 

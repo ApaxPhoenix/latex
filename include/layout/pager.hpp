@@ -1,28 +1,29 @@
 #pragma once
 
-#include <cstdint>
-
 #include "memory/arena.hpp"
 #include "memory/slice.hpp"
 #include "layout/node.hpp"
 
+
+#include <cstdint>
+
 namespace layout {
-
-    struct Context {
-        float height{0.0f};
-        float width{0.0f};
-        float skip{0.0f};
-    };
-
-    struct Page {
-        memory::Slice<Node*> nodes{};
-        float height{0.0f};
-        std::int32_t index{0};
-        std::int32_t badness{0};
-    };
 
     class Pager {
     public:
+        struct Context {
+            float height{0.0f};
+            float width{0.0f};
+            float skip{0.0f};
+        };
+
+        struct Page {
+            memory::Slice<Node*> nodes{};
+            float height{0.0f};
+            std::int32_t index{0};
+            std::int32_t badness{0};
+        };
+
         struct Configuration {
             float target{0.0f};
             float height{0.0f};
@@ -44,7 +45,7 @@ namespace layout {
         [[nodiscard]] static std::int32_t badness(float actual, float target, float flex) noexcept;
 
     private:
-        memory::Arena& arena_;
+        memory::Arena& arena;
         Configuration configuration_{};
     };
 

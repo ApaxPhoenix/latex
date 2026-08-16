@@ -5,7 +5,6 @@
 #include <fontconfig/fontconfig.h>
 #include <string_view>
 #include <unordered_map>
-#include <vector>
 
 typedef _FcConfig FcConfig;
 

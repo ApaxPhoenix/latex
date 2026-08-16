@@ -46,14 +46,14 @@ namespace expression {
 
         while (true) {
             const syntax::Token next = lookahead();
-            if (next.value.empty()) {
+            if (next.values.empty()) {
                 break;
             }
-            if (closing != 0 && next.value.size() == 1 && next.value[0] == closing) {
+            if (closing != 0 && next.values.size() == 1 && next.values[0] == closing) {
                 advance();
                 break;
             }
-            if (next.value == "}" || next.value == ")") {
+            if (next.values == "}" || next.values == ")") {
                 break;
             }
 
@@ -84,7 +84,7 @@ namespace expression {
         auto* node = compose(type);
 
         if (type == Node::Type::Radical) {
-            if (lookahead().value == "[") {
+            if (lookahead().values == "[") {
                 advance();
                 node->left = sequence(']');
             }
@@ -101,32 +101,32 @@ namespace expression {
 
     Node* Parser::core() {
         const syntax::Token token = advance();
-        if (token.value.empty()) {
+        if (token.values.empty()) {
             return nullptr;
         }
 
-        if (token.value == "{") return group('}');
-        if (token.value == "(") return group(')');
+        if (token.values == "{") return group('}');
+        if (token.values == "(") return group(')');
 
         if (const auto index = static_cast<std::size_t>(token.symbol); index < rules.size() && rules[index].structural) {
             return structural(rules[index].type);
         }
 
-        std::string_view name = token.value;
+        std::string_view name = token.values;
         if (name.starts_with('\\')) {
             name.remove_prefix(1);
         }
 
         if (const auto symbol = unicodes.query(name)) {
             auto* node = compose(Node::Type::Variable);
-            node->value = token.value;
+            node->value = token.values;
             node->codepoint = symbol->codepoint;
             node->category = symbol->category;
             return node;
         }
 
         auto* node = compose(Node::Type::Variable);
-        node->value = token.value;
+        node->value = token.values;
         return node;
     }
 
@@ -148,10 +148,10 @@ namespace expression {
 
         while (true) {
             const syntax::Token next = lookahead();
-            if (next.value == "_") {
+            if (next.values == "_") {
                 advance();
                 subscript = core();
-            } else if (next.value == "^") {
+            } else if (next.values == "^") {
                 advance();
                 superscript = core();
             } else {
@@ -176,7 +176,7 @@ namespace expression {
 
         while (true) {
             const syntax::Token next = lookahead();
-            if (next.value.empty() || next.value == "}" || next.value == ")" || next.value == "]") {
+            if (next.values.empty() || next.values == "}" || next.values == ")" || next.values == "]") {
                 break;
             }
 
@@ -193,7 +193,7 @@ namespace expression {
 
                 const syntax::Token token = advance();
                 auto* binary = compose(rule.type);
-                binary->value = token.value;
+                binary->value = token.values;
                 binary->left = left;
                 binary->right = step(rule.weight);
                 left = script(binary);

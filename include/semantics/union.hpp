@@ -24,13 +24,13 @@ namespace semantics {
         [[nodiscard]] Registers& registers() noexcept { return registers_; }
         [[nodiscard]] const Registers& registers() const noexcept { return registers_; }
 
-        [[nodiscard]] Scope& scope() noexcept { return scope_; }
-        [[nodiscard]] const Scope& scope() const noexcept { return scope_; }
+        [[nodiscard]] Scope& scope() noexcept { return scopes; }
+        [[nodiscard]] const Scope& scope() const noexcept { return scopes; }
 
     private:
         syntax::CatCodes catcodes_{};
         Registers registers_{};
-        Scope scope_{};
+        Scope scopes{};
     };
 
 }

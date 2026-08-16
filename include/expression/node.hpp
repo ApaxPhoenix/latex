@@ -19,9 +19,9 @@ namespace expression {
             Binary,   // Infix operators with left/right operands (e.g., +, -)
             Unary,    // Single-operand prefix or postfix operators (e.g., -x, n!)
             Group,    // Delimited sub-expressions (e.g., {...}, (...))
-            // Thought of separating these into two different categories: subscripts and superscripts
-            // But realized that it will get more confusing on the long run
-            // Because of the design language x_1^2 it could be referenced to as x: - sub: 1, sup: 2
+            // Thought of separating these into two different categories: subscripts and superscripts.
+            // But realized that it will get more confusing on the long run.
+            // Because of the design language x_1^2 it could be referenced to as x: - sub: 1, sup: 2.
             SubSup,   // Base node with attached sub/superscripts (e.g., x_i^2)
             Fraction, // Numerator and denominator pairs (e.g., \frac{a}{b})
             Radical,  // Square or n-th root expressions (e.g., \sqrt[n]{x})

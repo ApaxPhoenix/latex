@@ -5,7 +5,6 @@
 #include "syntax/tokens.hpp"
 #include "memory/location.hpp"
 
-#include <cstddef>
 #include <string_view>
 
 namespace syntax {
