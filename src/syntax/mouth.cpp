@@ -23,14 +23,14 @@ namespace syntax {
             if (token.type == CatCodes::Type::Escape) {
                 if (token.value.starts_with("\\if")) {
                     depth++;
-                    Logger::fmt(Logger::Type::Mouth, Logger::Level::Trace,
+                    Logger::fmt(Logger::Type::Mouth, Logger::Level::Traceback,
                                 "Nested conditional encountered during skip (depth={})", depth);
                 } else if (token.symbol == end) {
                     depth--;
-                    Logger::fmt(Logger::Type::Mouth, Logger::Level::Trace,
+                    Logger::fmt(Logger::Type::Mouth, Logger::Level::Traceback,
                                 "Closing \\fi encountered during skip (depth={})", depth);
                 } else if (check && token.symbol == otherwise && depth == 1) {
-                    Logger::log(Logger::Type::Mouth, Logger::Level::Trace, "Matching \\else branch hit at depth 1");
+                    Logger::log(Logger::Type::Mouth, Logger::Level::Traceback, "Matching \\else branch hit at depth 1");
                     break;
                 }
             }
@@ -60,13 +60,13 @@ namespace syntax {
         const Symbol close = lexicon_.intern("}");
 
         this->bind(open, [](Mouth& mouth) {
-            Logger::log(Logger::Type::Mouth, Logger::Level::Trace, "Opening group scope '{'");
+            Logger::log(Logger::Type::Mouth, Logger::Level::Traceback, "Opening group scope '{'");
             mouth.state().push(semantics::Scope::Type::Group);
             mouth.push();
         });
 
         this->bind(close, [](Mouth& mouth) {
-            Logger::log(Logger::Type::Mouth, Logger::Level::Trace, "Closing group scope '}'");
+            Logger::log(Logger::Type::Mouth, Logger::Level::Traceback, "Closing group scope '}'");
             mouth.state().pop();
             mouth.pop();
         });
@@ -91,13 +91,13 @@ namespace syntax {
                 if (mouth.cursor_.lookahead(0).value == "=") mouth.read();
                 if (const auto code = Number::integer(mouth.cursor_, mouth.state_.registers(), mouth.count_)) {
                     if (!target.value.empty()) {
-                        Logger::fmt(Logger::Type::Mouth, Logger::Level::Info,
+                        Logger::fmt(Logger::Type::Mouth, Logger::Level::Informative,
                                     "Assigning catcode for character '{}' to {}", target.value[0], *code);
                         mouth.state().catcodes().set(target.value[0], static_cast<CatCodes::Type>(*code));
                     }
                 } else {
                     const std::string message = "Invalid category code value in \\catcode assignment";
-                    Logger::fmt(Logger::Type::Mouth, Logger::Level::Warn, "Catcode error: {}", message);
+                    Logger::fmt(Logger::Type::Mouth, Logger::Level::Warning, "Catcode error: {}", message);
                     mouth.tracebacks().emplace_back(
                         Traceback::Type::Catcode,
                         target.location,
@@ -109,7 +109,7 @@ namespace syntax {
                 const Token name = mouth.read();
                 if (name.type != CatCodes::Type::Escape) {
                     const std::string message = "Expected control sequence macro name following \\def";
-                    Logger::fmt(Logger::Type::Mouth, Logger::Level::Warn, "Macro definition error: {}", message);
+                    Logger::fmt(Logger::Type::Mouth, Logger::Level::Warning, "Macro definition error: {}", message);
                     mouth.tracebacks().emplace_back(
                         Traceback::Type::Macro,
                         name.location,
@@ -133,8 +133,8 @@ namespace syntax {
                 }
 
                 if (mouth.cursor_.empty() || mouth.cursor_.lookahead(0).value != "{") {
-                    const std::string message = "Missing replacement glyphs body block '{...}' in \\def definition";
-                    Logger::fmt(Logger::Type::Mouth, Logger::Level::Warn, "Macro definition error: {}", message);
+                    const std::string message = "Missing replacement equations body block '{...}' in \\def definition";
+                    Logger::fmt(Logger::Type::Mouth, Logger::Level::Warning, "Macro definition error: {}", message);
                     mouth.tracebacks().emplace_back(
                         Traceback::Type::Syntax,
                         name.location,
@@ -144,8 +144,8 @@ namespace syntax {
                 }
 
                 macro.body = mouth.argument({});
-                Logger::fmt(Logger::Type::Mouth, Logger::Level::Info,
-                            "Defined macro '{}' (letters={}) with {} parameters and {} body tokens",
+                Logger::fmt(Logger::Type::Mouth, Logger::Level::Informative,
+                            "Defined macro '{}' (text={}) with {} parameters and {} body tokens",
                             name.value, name.symbol, macro.parameters.size(), macro.body.size());
                 mouth.define(name.symbol, std::move(macro));
             }},
@@ -154,22 +154,22 @@ namespace syntax {
                 if (mouth.cursor_.lookahead(0).value == "=") mouth.read();
                 if (const Token source = mouth.read(); source.symbol < mouth.primitives_.size() && mouth.primitives_[source.symbol]) {
                     Logger::fmt(Logger::Type::Mouth, Logger::Level::Debug,
-                                "Aliasing primitive letters {} -> {}", source.symbol, target.symbol);
+                                "Aliasing primitive text {} -> {}", source.symbol, target.symbol);
                     mouth.bind(target.symbol, mouth.primitives_[source.symbol]);
                 } else if (source.symbol < mouth.macros_.size() && mouth.macros_[source.symbol].active) {
                     Logger::fmt(Logger::Type::Mouth, Logger::Level::Debug,
-                                "Aliasing macro letters {} -> {}", source.symbol, target.symbol);
+                                "Aliasing macro text {} -> {}", source.symbol, target.symbol);
                     mouth.define(target.symbol, mouth.macros_[source.symbol]);
                 }
             }},
             {"\\expandafter", [](Mouth& mouth) {
-                Logger::log(Logger::Type::Mouth, Logger::Level::Trace, "Executing \\expandafter expansion");
+                Logger::log(Logger::Type::Mouth, Logger::Level::Traceback, "Executing \\expandafter expansion");
                 Token token = mouth.read();
                 std::ignore = mouth.step();
                 mouth.inject(std::span<const Token>(&token, 1));
             }},
             {"\\noexpand", [](Mouth& mouth) {
-                Logger::log(Logger::Type::Mouth, Logger::Level::Trace, "Suppressing expansion via \\noexpand");
+                Logger::log(Logger::Type::Mouth, Logger::Level::Traceback, "Suppressing expansion via \\noexpand");
                 mouth.suppress_ = true;
             }},
             {"\\csname", [](Mouth& mouth) {
@@ -195,7 +195,7 @@ namespace syntax {
                 if (mouth.cursor_.lookahead(0).value == "=") mouth.read();
                 if (const auto slot = Number::integer(mouth.cursor_, mouth.state_.registers(), mouth.count_)) {
                     Logger::fmt(Logger::Type::Mouth, Logger::Level::Debug,
-                                "Bound count register alias letters {} to index {}", name.symbol, *slot);
+                                "Bound count register alias text {} to index {}", name.symbol, *slot);
                     mouth.state_.registers().bind(name.symbol, semantics::Registers::Type::Count, static_cast<std::size_t>(*slot));
                 }
             }},
@@ -204,7 +204,7 @@ namespace syntax {
                 if (mouth.cursor_.lookahead(0).value == "=") mouth.read();
                 if (const auto slot = Number::integer(mouth.cursor_, mouth.state_.registers(), mouth.count_)) {
                     Logger::fmt(Logger::Type::Mouth, Logger::Level::Debug,
-                                "Bound dimension register alias letters {} to index {}", name.symbol, *slot);
+                                "Bound dimension register alias text {} to index {}", name.symbol, *slot);
                     mouth.state_.registers().bind(name.symbol, semantics::Registers::Type::Dimension, static_cast<std::size_t>(*slot));
                 }
             }},
@@ -224,7 +224,7 @@ namespace syntax {
                 if (const auto amount = Number::integer(mouth.cursor_, mouth.state_.registers(), mouth.count_)) {
                     const auto current = mouth.state_.registers().get(target.symbol);
                     Logger::fmt(Logger::Type::Mouth, Logger::Level::Debug,
-                                "Advanced register letters {} by {} (new value: {})", target.symbol, *amount, current + *amount);
+                                "Advanced register text {} by {} (new value: {})", target.symbol, *amount, current + *amount);
                     mouth.state_.registers().set(target.symbol, current + *amount, mouth.global_);
                     mouth.global_ = false;
                 }
@@ -270,19 +270,19 @@ namespace syntax {
             {"\\iffalse", [](Mouth& mouth) { Logger::log(Logger::Type::Mouth, Logger::Level::Debug, "\\iffalse taking false branch"); skip(mouth, true, mouth.else_, mouth.fi_); }},
             {"\\or",      [](Mouth& mouth) { skip(mouth, false, mouth.else_, mouth.fi_); }},
             {"\\else",    [](Mouth& mouth) { skip(mouth, false, mouth.else_, mouth.fi_); }},
-            {"\\fi",      [](Mouth&) { Logger::log(Logger::Type::Mouth, Logger::Level::Trace, "Encountered \\fi boundary"); }},
-            {"\\relax",   [](Mouth&) { Logger::log(Logger::Type::Mouth, Logger::Level::Trace, "Executing \\relax NOP"); }}
+            {"\\fi",      [](Mouth&) { Logger::log(Logger::Type::Mouth, Logger::Level::Traceback, "Encountered \\fi boundary"); }},
+            {"\\relax",   [](Mouth&) { Logger::log(Logger::Type::Mouth, Logger::Level::Traceback, "Executing \\relax NOP"); }}
         };
 
         for (const auto& [name, handler] : builtins) {
             this->bind(name, handler);
         }
-        Logger::log(Logger::Type::Mouth, Logger::Level::Info, "Mouth initialized with core system primitives");
+        Logger::log(Logger::Type::Mouth, Logger::Level::Informative, "Mouth initialized with core system primitives");
     }
 
     void Mouth::push() {
         this->marks_.push_back(this->undo_.size());
-        Logger::fmt(Logger::Type::Mouth, Logger::Level::Trace,
+        Logger::fmt(Logger::Type::Mouth, Logger::Level::Traceback,
                     "Pushed scope mark at depth {}", this->marks_.size());
     }
 
@@ -308,8 +308,8 @@ namespace syntax {
             if (symbol < this->macros_.size()) {
                 this->macros_[symbol] = macro;
                 this->macros_[symbol].active = active;
-                Logger::fmt(Logger::Type::Mouth, Logger::Level::Trace,
-                            "Restored macro definition state for letters {} on scope exit", symbol);
+                Logger::fmt(Logger::Type::Mouth, Logger::Level::Traceback,
+                            "Restored macro definition state for text {} on scope exit", symbol);
             }
         }
     }
@@ -338,15 +338,15 @@ namespace syntax {
 
         if (this->suppress_) {
             this->suppress_ = false;
-            Logger::fmt(Logger::Type::Mouth, Logger::Level::Trace,
+            Logger::fmt(Logger::Type::Mouth, Logger::Level::Traceback,
                         "Expansion suppressed for token '{}'", token.value);
             return false;
         }
 
         if (token.symbol < this->primitives_.size() && this->primitives_[token.symbol]) {
             this->cursor_.advance();
-            Logger::fmt(Logger::Type::Mouth, Logger::Level::Trace,
-                        "Executing primitive handler for command '{}' (letters={})", token.value, token.symbol);
+            Logger::fmt(Logger::Type::Mouth, Logger::Level::Traceback,
+                        "Executing primitive handler for command '{}' (text={})", token.value, token.symbol);
             this->primitives_[token.symbol](*this);
             return true;
         }
@@ -449,7 +449,7 @@ namespace syntax {
             if (!matched) {
                 const memory::Location location = this->cursor_.empty() ? memory::Location{} : this->cursor_.lookahead(0).location;
                 const std::string message = "Delimited macro argument missing matching trailing boundary";
-                Logger::fmt(Logger::Type::Mouth, Logger::Level::Warn, "Argument parsing error: {}", message);
+                Logger::fmt(Logger::Type::Mouth, Logger::Level::Warning, "Argument parsing error: {}", message);
                 this->tracebacks_.emplace_back(
                     Traceback::Type::Delimiter,
                     location,
@@ -473,7 +473,7 @@ namespace syntax {
                 }
                 if (scope > 0) {
                     const std::string message = "Unclosed group brace '{' while parsing macro argument block";
-                    Logger::fmt(Logger::Type::Mouth, Logger::Level::Warn,
+                    Logger::fmt(Logger::Type::Mouth, Logger::Level::Warning,
                                 "Argument error at line {} col {}: {}", token.location.line, token.location.column, message);
                     this->tracebacks_.emplace_back(
                         Traceback::Type::Group,
@@ -493,7 +493,7 @@ namespace syntax {
     }
 
     void Mouth::ingest(const std::string_view source) {
-        Logger::fmt(Logger::Type::Mouth, Logger::Level::Info,
+        Logger::fmt(Logger::Type::Mouth, Logger::Level::Informative,
                     "Ingesting input source buffer size: {} bytes", source.size());
         Lexer lexer(source, this->state_.catcodes(), this->lexicon_);
         std::vector<Token> tokens;

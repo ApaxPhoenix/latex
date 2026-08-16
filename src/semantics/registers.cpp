@@ -13,7 +13,7 @@ namespace semantics {
 
     void Registers::pop() {
         if (marks.empty()) {
-            Logger::log(Logger::Type::Semantics, Logger::Level::Warn,
+            Logger::log(Logger::Type::Semantics, Logger::Level::Warning,
                         "Attempted to pop register checkpoint on empty stack");
             return;
         }
@@ -78,19 +78,19 @@ namespace semantics {
     void Registers::bind(const syntax::Symbol symbol, const Type type, const std::size_t index) {
         if (index >= 256uz) {
             Logger::fmt(Logger::Type::Semantics, Logger::Level::Error,
-                        "Cannot bind letters {} to out-of-bounds slot {}", symbol, index);
+                        "Cannot bind text {} to out-of-bounds slot {}", symbol, index);
             return;
         }
         aliases[symbol] = Target{type, index};
         Logger::fmt(Logger::Type::Semantics, Logger::Level::Debug,
-                    "Bound letters alias {} to register slot {}", symbol, index);
+                    "Bound text alias {} to register slot {}", symbol, index);
     }
 
     void Registers::set(const syntax::Symbol symbol, const std::int32_t value, const bool global) {
         const auto match = aliases.find(symbol);
         if (match == aliases.end()) {
-            Logger::fmt(Logger::Type::Semantics, Logger::Level::Warn,
-                        "Attempted set operation on unbound letters alias {}", symbol);
+            Logger::fmt(Logger::Type::Semantics, Logger::Level::Warning,
+                        "Attempted set operation on unbound text alias {}", symbol);
             return;
         }
         assign(match->second.type, match->second.slot, value, global);

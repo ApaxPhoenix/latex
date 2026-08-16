@@ -1,8 +1,8 @@
 #pragma once
 
 #include "expression/node.hpp"
+#include "expression/unicodes.hpp"
 #include "syntax/mouth.hpp"
-#include "syntax/unicodes.hpp"
 #include "memory/arena.hpp"
 
 #include <vector>
@@ -18,7 +18,7 @@ namespace expression {
 
     class Parser {
     public:
-        Parser(syntax::Mouth& mouth, const syntax::Unicodes& unicodes, memory::Arena& arena);
+        Parser(syntax::Mouth& mouth, const Unicodes& unicodes, memory::Arena& arena);
 
         Node* parse();
         void bind(syntax::Symbol symbol, Node::Type type, int weight = 0, bool right = false, bool structural = false);
@@ -36,7 +36,7 @@ namespace expression {
         Node* structural(Node::Type type);
 
         syntax::Mouth& mouth;
-        const syntax::Unicodes& unicodes;
+        const Unicodes& unicodes;
         memory::Arena& arena;
         syntax::Token current{};
         std::vector<Rule> rules{};

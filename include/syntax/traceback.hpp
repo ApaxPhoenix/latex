@@ -11,7 +11,7 @@ namespace syntax {
     public:
         enum class Type : std::uint8_t {
             Group,       // Mismatched or unclosed curly brace scope group
-            Equation,    // Invalid or unclosed letters formula boundary
+            Equation,    // Invalid or unclosed text formula boundary
             Environment, // Unmatched \begin and \end environment block
             Delimiter,   // Unbalanced \left and \right delimiter pair
             Argument,    // Missing or malformed macro argument

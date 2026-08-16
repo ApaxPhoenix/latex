@@ -9,7 +9,7 @@ namespace syntax {
 
     Parser::Parser(Mouth& mouth, memory::Arena& arena)
         : mouth_(mouth), arena_(arena) {
-        Logger::log(Logger::Type::Parser, Logger::Level::Info, "Parser subsystem initialized");
+        Logger::log(Logger::Type::Parser, Logger::Level::Informative, "Parser subsystem initialized");
     }
 
     Token Parser::step() const {
@@ -17,7 +17,7 @@ namespace syntax {
     }
 
     memory::Slice<Node*> Parser::parse() {
-        Logger::log(Logger::Type::Parser, Logger::Level::Info, "Starting AST syntax parsing pass...");
+        Logger::log(Logger::Type::Parser, Logger::Level::Informative, "Starting AST syntax parsing pass...");
 
         std::vector<Node*> nodes;
         nodes.reserve(1024);
@@ -51,7 +51,7 @@ namespace syntax {
             if (symbol < handlers_.size() && handlers_[symbol]) {
                 flush();
                 Logger::fmt(Logger::Type::Parser, Logger::Level::Debug,
-                            "Dispatching custom node handler for letters {} ('{}')", symbol, value);
+                            "Dispatching custom node handler for text {} ('{}')", symbol, value);
                 if (Node* node = handlers_[symbol](*this)) {
                     nodes.push_back(node);
                 }
@@ -88,7 +88,7 @@ namespace syntax {
         }
 
         if (!mouth_.tracebacks().empty()) {
-            Logger::fmt(Logger::Type::Parser, Logger::Level::Warn,
+            Logger::fmt(Logger::Type::Parser, Logger::Level::Warning,
                         "Parse pass completed with {} traceback error(s) recorded", mouth_.tracebacks().size());
 
             std::cerr << "[Parser Traceback Log]\n";
@@ -98,13 +98,13 @@ namespace syntax {
                 std::cerr << formatted << "\n";
             }
         } else {
-            Logger::log(Logger::Type::Parser, Logger::Level::Info, "Parse pass completed cleanly with zero errors");
+            Logger::log(Logger::Type::Parser, Logger::Level::Informative, "Parse pass completed cleanly with zero errors");
         }
 
         memory::Slice<Node*> slice = arena_.allocate<Node*>(nodes.size());
         std::ranges::copy(nodes, slice.begin());
 
-        Logger::fmt(Logger::Type::Parser, Logger::Level::Info,
+        Logger::fmt(Logger::Type::Parser, Logger::Level::Informative,
                     "Allocated AST slice containing {} node pointers in arena", slice.size());
 
         return slice;
@@ -120,7 +120,7 @@ namespace syntax {
             handlers_.resize(std::max<std::size_t>(size, handlers_.size() * 2));
         }
         Logger::fmt(Logger::Type::Parser, Logger::Level::Debug,
-                    "Bound custom AST node handler for letters {}", symbol);
+                    "Bound custom AST node handler for text {}", symbol);
         handlers_[symbol] = std::move(handler);
     }
 

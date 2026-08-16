@@ -10,7 +10,7 @@ namespace layout {
 
     Breaker::Breaker(memory::Arena& arena, const Configuration& configuration) noexcept
         : arena_(arena), configuration_(configuration) {
-        Logger::fmt(Logger::Type::Layout, Logger::Level::Info,
+        Logger::fmt(Logger::Type::Layout, Logger::Level::Informative,
                     "Breaker initialized with target={:.2f}pt, leading={:.2f}pt",
                     configuration_.target, configuration_.leading);
     }
@@ -31,11 +31,11 @@ namespace layout {
 
     memory::Slice<Node*> Breaker::compose(memory::Slice<Node*> input) {
         if (input.empty()) {
-            Logger::log(Logger::Type::Layout, Logger::Level::Warn, "Breaker received empty paragraph stream");
+            Logger::log(Logger::Type::Layout, Logger::Level::Warning, "Breaker received empty paragraph stream");
             return {};
         }
 
-        Logger::fmt(Logger::Type::Layout, Logger::Level::Info,
+        Logger::fmt(Logger::Type::Layout, Logger::Level::Informative,
                     "Starting paragraph line-breaking pass on {} nodes...", input.size());
 
         std::vector<Node*> stream(input.begin(), input.end());
@@ -94,10 +94,13 @@ namespace layout {
                 continue;
             }
 
-            for (std::size_t index = 0; index < active.size(); ++index) {
-                const auto [start, line, prior, base, _] = active[index];
+            std::vector<Active> pending;
+            const std::size_t total = active.size();
+
+            for (std::size_t index = 0; index < total; ++index) {
+                const auto [base, line, start, _, prior] = active[index];
                 const double delta = configuration_.target - (sums[current].width - sums[start].width);
-                const double flex = (delta >= 0.0) ? (sums[current].stretch - sums[start].stretch)
+                const double flex = delta >= 0.0 ? (sums[current].stretch - sums[start].stretch)
                                                   : (sums[current].shrink - sums[start].shrink);
 
                 const double score = badness(delta, flex);
@@ -114,7 +117,7 @@ namespace layout {
                     demerits += 10000.0;
                 }
 
-                active.push_back(Active{
+                pending.push_back(Active{
                     .node = current,
                     .line = line + 1,
                     .fitness = fitness,
@@ -122,10 +125,12 @@ namespace layout {
                     .previous = index
                 });
 
-                Logger::fmt(Logger::Type::Layout, Logger::Level::Trace,
+                Logger::fmt(Logger::Type::Layout, Logger::Level::Traceback,
                             "Evaluated break candidate [node {} -> {}] (badness={:.1f}, demerits={:.1f})",
                             start, current, score, base + demerits);
             }
+
+            active.insert(active.end(), pending.begin(), pending.end());
         }
 
         std::size_t best = 0;
@@ -144,7 +149,7 @@ namespace layout {
         }
         std::ranges::reverse(breaks);
 
-        Logger::fmt(Logger::Type::Layout, Logger::Level::Info,
+        Logger::fmt(Logger::Type::Layout, Logger::Level::Informative,
                     "Breaker constructed {} optimal line(s) (demerits={:.2f})",
                     breaks.size(), minimum);
 
@@ -190,10 +195,10 @@ namespace layout {
                 });
 
                 if (clearance >= configuration_.limit) {
-                    Logger::fmt(Logger::Type::Layout, Logger::Level::Trace,
+                    Logger::fmt(Logger::Type::Layout, Logger::Level::Traceback,
                                 "Inserted interline glue (height={:.2f}pt)", clearance);
                 } else {
-                    Logger::fmt(Logger::Type::Layout, Logger::Level::Trace,
+                    Logger::fmt(Logger::Type::Layout, Logger::Level::Traceback,
                                 "Clearance below threshold; inserted fallback glue (height={:.2f}pt)", configuration_.skip);
                 }
                 lines.push_back(glue);

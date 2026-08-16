@@ -11,8 +11,8 @@ namespace typography {
         return faces[index].load(path, size);
     }
 
-    bool Suite::load(const Face face, FontConfig& config, const std::string_view pattern, const unsigned int size) {
-        const std::string_view path = config.resolve(pattern);
+    bool Suite::load(const Face face, FontConfig& configuration, const std::string_view pattern, const unsigned int size) {
+        const std::string_view path = configuration.resolve(pattern);
 
         if (path.empty()) {
             return load(face, pattern, size);

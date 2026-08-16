@@ -7,7 +7,7 @@ namespace syntax {
 
     Lexer::Lexer(const std::string_view source, CatCodes& table, Lexicon& lexicon)
         : source(source), table(table), lexicon(lexicon) {
-        Logger::fmt(Logger::Type::Lexer, Logger::Level::Info,
+        Logger::fmt(Logger::Type::Lexer, Logger::Level::Informative,
                     "Lexer initialized with source size {} bytes", source.size());
     }
 
@@ -29,7 +29,7 @@ namespace syntax {
                 type = Type::Newline;
                 constexpr std::string_view value = "\n";
                 const Symbol sym = lexicon.intern(value);
-                Logger::fmt(Logger::Type::Lexer, Logger::Level::Trace,
+                Logger::fmt(Logger::Type::Lexer, Logger::Level::Traceback,
                             "Lexed Newline token at line {} col {}", position.line, position.column);
                 return Token{sym, lexicon.resolve(sym), position, CatCodes::Type::Space};
             }
@@ -43,7 +43,7 @@ namespace syntax {
                 type = Type::Skip;
                 constexpr std::string_view value = " ";
                 const Symbol sym = lexicon.intern(value);
-                Logger::fmt(Logger::Type::Lexer, Logger::Level::Trace,
+                Logger::fmt(Logger::Type::Lexer, Logger::Level::Traceback,
                             "Lexed Space token at line {} col {}", position.line, position.column);
                 return Token{sym, lexicon.resolve(sym), position, CatCodes::Type::Space};
             }
@@ -55,7 +55,7 @@ namespace syntax {
             }
 
             if (category == CatCodes::Type::Comment) {
-                Logger::fmt(Logger::Type::Lexer, Logger::Level::Trace,
+                Logger::fmt(Logger::Type::Lexer, Logger::Level::Traceback,
                             "Skipping comment block starting at line {} col {}", position.line, position.column);
                 while (offset < source.size() && source[offset] != '\n') {
                     offset++;
@@ -111,7 +111,7 @@ namespace syntax {
 
             const std::string_view slice = source.substr(origin, span);
             const Symbol sym = lexicon.intern(slice);
-            Logger::fmt(Logger::Type::Lexer, Logger::Level::Trace,
+            Logger::fmt(Logger::Type::Lexer, Logger::Level::Traceback,
                         "Lexed Character token '{}' (catcode={}) at line {} col {}",
                         slice, static_cast<std::uint32_t>(category), position.line, position.column);
             return Token{sym, lexicon.resolve(sym), position, category};

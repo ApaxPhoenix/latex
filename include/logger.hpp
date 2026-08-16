@@ -45,10 +45,10 @@ public:
     }
 
     enum class Level : std::uint8_t {
-        Trace,
+        Traceback,
         Debug,
-        Info,
-        Warn,
+        Informative,
+        Warning,
         Error
     };
 
@@ -84,8 +84,8 @@ public:
     }
 
 private:
-    static inline auto mask = Type::None;
-    static inline auto threshold = Level::Trace;
+    static inline auto mask = Type::All;
+    static inline auto threshold = Level::Traceback;
     static inline bool ansi = true;
     static inline std::ofstream stream;
     static inline std::mutex mutex;

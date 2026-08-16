@@ -4,7 +4,24 @@
 #include <format>
 #include <iostream>
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 void Logger::init(const int count, char** arguments) {
+#if defined(_WIN32)
+    const HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD modeOut = 0;
+    if (GetConsoleMode(hOut, &modeOut)) {
+        SetConsoleMode(hOut, modeOut | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    }
+    const HANDLE hErr = GetStdHandle(STD_ERROR_HANDLE);
+    DWORD modeErr = 0;
+    if (GetConsoleMode(hErr, &modeErr)) {
+        SetConsoleMode(hErr, modeErr | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    }
+#endif
+
     for (int index = 1; index < count; ++index) {
         if (const std::string_view option(arguments[index]); option == "--debug" || option == "-d") {
             enable(Type::All);
@@ -90,7 +107,7 @@ void Logger::log(const Type target, const Level value, const std::string_view te
         output = std::format("[{}] [{}] [{}] {}\n", stamp, tag, rank, text);
     }
 
-    std::clog << output;
+    std::clog << output << std::flush;
     if (stream.is_open()) {
         stream << output;
         stream.flush();
@@ -112,12 +129,12 @@ std::string_view Logger::name(const Type target) noexcept {
 
 std::string_view Logger::name(const Level value) noexcept {
     switch (value) {
-        case Level::Trace: return "Trace";
-        case Level::Debug: return "Debug";
-        case Level::Info:  return "Info";
-        case Level::Warn:  return "Warn";
-        case Level::Error: return "Error";
-        default:           return "Log";
+        case Level::Traceback:   return "Traceback";
+        case Level::Debug:       return "Debug";
+        case Level::Informative: return "Informative";
+        case Level::Warning:     return "Warning";
+        case Level::Error:       return "Error";
+        default:                 return "Log";
     }
 }
 
@@ -135,11 +152,11 @@ std::string_view Logger::style(const Type target) noexcept {
 
 std::string_view Logger::style(const Level value) noexcept {
     switch (value) {
-        case Level::Trace: return "\033[90m";
-        case Level::Debug: return "\033[37m";
-        case Level::Info:  return "\033[32m";
-        case Level::Warn:  return "\033[33m";
-        case Level::Error: return "\033[31m";
-        default:           return "\033[0m";
+        case Level::Traceback:   return "\033[90m";
+        case Level::Debug:       return "\033[37m";
+        case Level::Informative: return "\033[32m";
+        case Level::Warning:     return "\033[33m";
+        case Level::Error:       return "\033[31m";
+        default:                 return "\033[0m";
     }
 }

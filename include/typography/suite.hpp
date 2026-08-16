@@ -27,7 +27,7 @@ namespace typography {
 
         bool load(Face face, std::string_view path, unsigned int size);
 
-        bool load(Face face, FontConfig& config, std::string_view pattern, unsigned int size);
+        bool load(Face face, FontConfig& configuration, std::string_view pattern, unsigned int size);
 
         [[nodiscard]] const Font* fetch(Face face) const noexcept;
         [[nodiscard]] Font* fetch(Face face) noexcept;

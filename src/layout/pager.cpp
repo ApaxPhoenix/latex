@@ -66,7 +66,7 @@ namespace layout {
 
     memory::Slice<Page> Pager::paginate(Node* head, const Context& context) const {
         if (!head) {
-            Logger::log(Logger::Type::Layout, Logger::Level::Warn, "Pager received null head node");
+            Logger::log(Logger::Type::Layout, Logger::Level::Warning, "Pager received null head node");
             return {};
         }
 
@@ -85,7 +85,7 @@ namespace layout {
         }
 
         if (count == 0) {
-            Logger::log(Logger::Type::Layout, Logger::Level::Warn, "Pagination generated zero pages");
+            Logger::log(Logger::Type::Layout, Logger::Level::Warning, "Pagination generated zero pages");
             return {};
         }
 
@@ -128,7 +128,7 @@ namespace layout {
             current = chunk[chunk.size() - 1]->next();
         }
 
-        Logger::fmt(Logger::Type::Layout, Logger::Level::Info,
+        Logger::fmt(Logger::Type::Layout, Logger::Level::Informative,
                     "Pager generated {} page(s) (target height={:.2f}pt)",
                     count, limit);
 

@@ -1,4 +1,5 @@
 #include "typography/shaper.hpp"
+#include "logger.hpp"
 
 #include <vector>
 
@@ -15,21 +16,26 @@ namespace typography {
     }
 
     memory::Slice<layout::Node*> Shaper::shape(
-        const Font& font,
-        const std::string_view text,
-        const memory::Slice<Feature> features
+    const Font& font,
+    const std::string_view text,
+    const memory::Slice<Feature> features
     ) const {
         if (text.empty()) {
+            Logger::log(Logger::Type::Layout, Logger::Level::Warning, "Shaper received empty text string");
             return arena.allocate<layout::Node*>(0);
         }
 
         hb_font_t* handle = font.fetch();
         if (!handle) {
+            Logger::log(Logger::Type::Layout, Logger::Level::Error, "Shaper failed to retrieve valid hb_font_t handle from Font");
             return arena.allocate<layout::Node*>(0);
         }
 
         hb_font_extents_t extents{};
         hb_font_get_extents_for_direction(handle, HB_DIRECTION_LTR, &extents);
+        if (extents.ascender == 0) {
+            hb_font_get_h_extents(handle, &extents);
+        }
 
         hb_buffer_t* buffer = hb_buffer_create();
         hb_buffer_add_utf8(buffer, text.data(), static_cast<int>(text.size()), 0, static_cast<int>(text.size()));
@@ -52,41 +58,46 @@ namespace typography {
         const hb_glyph_info_t* info = hb_buffer_get_glyph_infos(buffer, &count);
         const hb_glyph_position_t* position = hb_buffer_get_glyph_positions(buffer, &count);
 
+        if (count == 0) {
+            Logger::log(Logger::Type::Layout, Logger::Level::Warning, "HarfBuzz shaping produced 0 glyphs");
+            hb_buffer_destroy(buffer);
+            return arena.allocate<layout::Node*>(0);
+        }
+
+        Logger::fmt(Logger::Type::Layout, Logger::Level::Informative, "Shaper produced {} glyph nodes", count);
+
         auto result = arena.allocate<layout::Node*>(count);
+
+        constexpr float scale = 1.0f / 64.0f;
+        const float height = extents.ascender != 0 ? static_cast<float>(extents.ascender) * scale : 12.0f;
+        const float depth = extents.descender != 0 ? static_cast<float>(-extents.descender) * scale : 3.0f;
 
         for (std::size_t index = 0; index < count; ++index) {
             const std::uint32_t cluster = info[index].cluster;
             const char symbol = cluster < text.size() ? text[cluster] : '\0';
-
-            // HarfBuzz 26.6 coordinate conversion factor (64 units per point/pixel)
-            constexpr float scale = 1.0f / 64.0f;
             const float advance = static_cast<float>(position[index].x_advance) * scale;
 
             if (symbol == ' ') {
                 auto* glue_node = arena.compose<layout::Node>(layout::Node::Type::Glue);
-
-                layout::Node::Glue glue_payload{};
-                glue_payload.width = advance;
-                glue_payload.stretch = advance * 0.5f;
-                glue_payload.shrink = advance * 0.333333f;
-                glue_payload.stretchorder = layout::Node::Order::Normal;
-                glue_payload.shrinkorder = layout::Node::Order::Normal;
-
-                glue_node->glue(glue_payload);
+                glue_node->glue({
+                    .width = advance,
+                    .stretch = advance * 0.5f,
+                    .shrink = advance * 0.333333f,
+                    .stretchorder = layout::Node::Order::Normal,
+                    .shrinkorder = layout::Node::Order::Normal
+                });
                 result[index] = glue_node;
                 continue;
             }
 
             auto* glyph_node = arena.compose<layout::Node>(layout::Node::Type::Glyph);
-
-            layout::Node::Glyph glyph_payload{};
-            glyph_payload.font = 1; // Primary font ID
-            glyph_payload.code = info[index].codepoint;
-            glyph_payload.width = advance;
-            glyph_payload.height = static_cast<float>(extents.ascender) * scale;
-            glyph_payload.depth = static_cast<float>(-extents.descender) * scale;
-
-            glyph_node->glyph(glyph_payload);
+            glyph_node->glyph({
+                .font = 1,
+                .code = info[index].codepoint,
+                .width = advance,
+                .height = height,
+                .depth = depth
+            });
             result[index] = glyph_node;
         }
 

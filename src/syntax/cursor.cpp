@@ -27,8 +27,8 @@ namespace syntax {
     Token Cursor::advance() noexcept {
         if (this->head < this->tokens.size()) {
             Token token = this->tokens[this->head++];
-            Logger::fmt(Logger::Type::Mouth, Logger::Level::Trace,
-                        "Cursor advanced to head position {} (letters={})", this->head, token.symbol);
+            Logger::fmt(Logger::Type::Mouth, Logger::Level::Traceback,
+                        "Cursor advanced to head position {} (text={})", this->head, token.symbol);
             return token;
         }
         return {};

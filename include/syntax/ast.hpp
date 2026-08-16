@@ -9,9 +9,9 @@ namespace syntax {
 
     struct Node {
         enum class Type {
-            Text,        // Plain unformatted character glyphs stream
+            Text,        // Plain unformatted character equations stream
             Paragraph,   // Paragraph break control node (\par)
-            Equation,    // Inline or display letters block (\(... \) or \[... \])
+            Equation,    // Inline or display text block (\(... \) or \[... \])
             Group,       // Enclosed local scope block ({...})
             Document,    // Main document environment (\begin{document}...\end{document})
             Verbatim,    // Raw unformatted code container (\begin{verbatim}...\end{verbatim})

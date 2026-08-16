@@ -2,7 +2,7 @@
 
 namespace expression {
 
-    Parser::Parser(syntax::Mouth& mouth, const syntax::Unicodes& unicodes, memory::Arena& arena)
+    Parser::Parser(syntax::Mouth& mouth, const Unicodes& unicodes, memory::Arena& arena)
         : mouth(mouth), unicodes(unicodes), arena(arena) {
         current = mouth.expand();
     }
@@ -21,7 +21,7 @@ namespace expression {
         auto slice = arena.allocate<Node>(1);
         Node* node = &slice[0];
         node->type = type;
-        node->type_ = syntax::Unicodes::Type::Ordinary;
+        node->type_ = Unicodes::Type::Ordinary;
         node->codepoint = 0;
         node->value = {};
         node->left = nullptr;

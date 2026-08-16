@@ -110,7 +110,7 @@ namespace layout {
     }
 
     memory::Slice<Node*> Document::compose() const {
-        Logger::fmt(Logger::Type::Layout, Logger::Level::Info,
+        Logger::fmt(Logger::Type::Layout, Logger::Level::Informative,
                     "Composing document slice across {} line node(s)", lines.size());
         const memory::Slice<Node*> slice = arena.allocate<Node*>(lines.size());
         for (std::size_t index = 0; index < lines.size(); ++index) {
@@ -121,10 +121,10 @@ namespace layout {
 
     memory::Slice<Page> Document::split() const {
         if (lines.empty()) {
-            Logger::log(Logger::Type::Layout, Logger::Level::Warn, "Document split requested on empty content stream");
+            Logger::log(Logger::Type::Layout, Logger::Level::Warning, "Document split requested on empty content stream");
             return {};
         }
-        Logger::fmt(Logger::Type::Layout, Logger::Level::Info,
+        Logger::fmt(Logger::Type::Layout, Logger::Level::Informative,
                     "Splitting document stream starting from head node");
         return pager.paginate(lines.front(), {
             .height = configuration_.height - configuration_.top - configuration_.bottom,

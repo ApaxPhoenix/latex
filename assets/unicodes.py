@@ -41,14 +41,14 @@ for code, name, kind in matches:
 
 with open("unicodes.gperf", "w", encoding="utf-8") as file:
     file.write("%{\n")
-    file.write('#include "syntax/unicodes.hpp"\n')
+    file.write('#include "expression/unicodes.hpp"\n')
     file.write("%}\n")
     file.write("struct Entry {\n")
     file.write("    const char* name;\n")
     file.write("    std::uint32_t codepoint;\n")
-    file.write("    syntax::Unicodes::Type type;\n")
+    file.write("    expression::Unicodes::Type type;\n")
     file.write("};\n")
     file.write("%%\n")
     for name, (code, type_name) in sorted(symbols.items()):
-        file.write(f"{name}, 0x{code}, syntax::Unicodes::Type::{type_name}\n")
+        file.write(f"{name}, 0x{code}, expression::Unicodes::Type::{type_name}\n")
     file.write("%%\n")

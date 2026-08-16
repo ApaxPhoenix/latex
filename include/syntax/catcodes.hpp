@@ -16,7 +16,7 @@ namespace syntax {
             Mark,      // Superscript marker (default: ^)
             Index,     // Subscript marker (default: _)
             Letter,    // Alphabetic identifier characters (a-z, A-Z)
-            Other,     // Numbers, punctuation, and unmapped letters
+            Other,     // Numbers, punctuation, and unmapped text
             Space,     // Blank space, tab, or newline
             Comment,   // Rest-of-line comment (default: %)
             Active,    // Character acting directly as a command (default: ~)

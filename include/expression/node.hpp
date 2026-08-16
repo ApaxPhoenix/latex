@@ -1,7 +1,7 @@
 #pragma once
 
 #include "memory/slice.hpp"
-#include "syntax/unicodes.hpp"
+#include "unicodes.hpp"
 
 #include <cstdint>
 #include <string_view>
@@ -22,7 +22,7 @@ namespace expression {
         };
 
         Type type = Type::Variable;
-        syntax::Unicodes::Type type_ = syntax::Unicodes::Type::Ordinary;
+        Unicodes::Type type_ = Unicodes::Type::Ordinary;
         std::uint32_t codepoint = 0;
         std::string_view value{};
 

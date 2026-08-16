@@ -15,7 +15,7 @@ namespace semantics {
             Logger::fmt(Logger::Type::Semantics, Logger::Level::Debug,
                         "Exited scope layer (depth remaining: {})", stack.size());
         } else {
-            Logger::log(Logger::Type::Semantics, Logger::Level::Warn,
+            Logger::log(Logger::Type::Semantics, Logger::Level::Warning,
                         "Attempted pop operation on empty scope stack");
         }
     }
@@ -34,7 +34,7 @@ namespace semantics {
 
     void Scope::reset() noexcept {
         stack.clear();
-        Logger::log(Logger::Type::Semantics, Logger::Level::Info,
+        Logger::log(Logger::Type::Semantics, Logger::Level::Informative,
                     "Scope hierarchy reset to root level");
     }
 

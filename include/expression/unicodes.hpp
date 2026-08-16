@@ -6,7 +6,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace syntax {
+namespace expression {
 
     class Unicodes {
     public:
@@ -40,8 +40,6 @@ namespace syntax {
         void compose(std::string_view name, std::uint32_t codepoint, Type type);
         void dispose(std::string_view name);
         [[nodiscard]] std::optional<Symbol> query(std::string_view name) const noexcept;
-
-        static std::uint32_t next(std::string_view& stream) noexcept;
 
     private:
         struct Hash {
