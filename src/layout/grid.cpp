@@ -1,6 +1,7 @@
 #include "layout/grid.hpp"
 #include "layout/layer.hpp"
 #include <algorithm>
+#include <array>
 
 namespace layout {
 
@@ -55,13 +56,24 @@ namespace layout {
             else fixed += item.size;
         }
 
-        float flex = std::max(0.0f, width - fixed);
+        const float flex = std::max(0.0f, width - fixed);
 
-        std::vector widths(slots, size.width / static_cast<float>(slots));
-        std::vector heights(tracks, size.height / static_cast<float>(tracks));
+        constexpr std::size_t capacity = 64;
+        std::array<float, capacity> widths{};
+        std::array<float, capacity> heights{};
+
+        const float unit = size.width / static_cast<float>(slots);
+        for (std::size_t index = 0; index < slots && index < capacity; ++index) {
+            widths[index] = unit;
+        }
+
+        const float span = size.height / static_cast<float>(tracks);
+        for (std::size_t index = 0; index < tracks && index < capacity; ++index) {
+            heights[index] = span;
+        }
 
         if (!columns.empty()) {
-            for (std::size_t index = 0; index < columns.size(); ++index) {
+            for (std::size_t index = 0; index < columns.size() && index < capacity; ++index) {
                 if (columns[index].weight > 0.0f && weight > 0.0f) {
                     widths[index] = flex * (columns[index].weight / weight);
                 } else {
@@ -77,12 +89,12 @@ namespace layout {
             else fixed += item.size;
         }
 
-        flex = std::max(0.0f, height - fixed);
+        const float room = std::max(0.0f, height - fixed);
 
         if (!rows.empty()) {
-            for (std::size_t index = 0; index < rows.size(); ++index) {
+            for (std::size_t index = 0; index < rows.size() && index < capacity; ++index) {
                 if (rows[index].weight > 0.0f && weight > 0.0f) {
-                    heights[index] = flex * (rows[index].weight / weight);
+                    heights[index] = room * (rows[index].weight / weight);
                 } else {
                     heights[index] = rows[index].size;
                 }
@@ -94,10 +106,10 @@ namespace layout {
 
         for (std::size_t row = 0; row < tracks && index < list.size(); ++row) {
             float x = origin.x;
-            const float extent = row < heights.size() ? heights[row] : 0.0f;
+            const float extent = row < capacity ? heights[row] : 0.0f;
 
             for (std::size_t column = 0; column < slots && index < list.size(); ++column) {
-                const float portion = column < widths.size() ? widths[column] : 0.0f;
+                const float portion = column < capacity ? widths[column] : 0.0f;
 
                 if (Layer* layer = list[index++]) {
                     layer->layout(

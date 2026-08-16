@@ -16,9 +16,9 @@ namespace typography {
     }
 
     memory::Slice<layout::Node*> Shaper::shape(
-    const Font& font,
-    const std::string_view text,
-    const memory::Slice<Feature> features
+        const Font& font,
+        const std::string_view text,
+        const memory::Slice<Feature> features
     ) const {
         if (text.empty()) {
             Logger::log(Logger::Type::Layout, Logger::Level::Warning, "Shaper received empty text string");
@@ -92,11 +92,10 @@ namespace typography {
 
             auto* glyph_node = arena.compose<layout::Node>(layout::Node::Type::Glyph);
             glyph_node->glyph({
-                .font = 1,
-                .code = info[index].codepoint,
                 .width = advance,
                 .height = height,
-                .depth = depth
+                .depth = depth,
+                .code = info[index].codepoint
             });
             result[index] = glyph_node;
         }

@@ -85,9 +85,12 @@ namespace layout {
             void* ptr{nullptr};
         };
 
-        Node() noexcept = default;
+        explicit Node(const Type type = Type::Box) noexcept
+            : type_(type) {}
 
         [[nodiscard]] Type type() const noexcept { return type_; }
+        void type(const Type value) noexcept { type_ = value; }
+
         [[nodiscard]] Node* next() const noexcept { return next_; }
         void next(Node* node) noexcept { next_ = node; }
 
@@ -126,9 +129,9 @@ namespace layout {
             Insertion insertion;
             Whatsit whatsit;
 
-            Data() {}
+            Data() : box{} {}
             ~Data() {}
-        } data;
+        } data{};
     };
 
 }

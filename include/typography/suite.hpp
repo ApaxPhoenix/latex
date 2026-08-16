@@ -11,10 +11,11 @@ namespace typography {
     class Suite {
     public:
         enum class Face : std::size_t {
-            Text = 0,
-            Equation = 1,
-            Mono = 2,
-            Count = 3
+            Regular = 0,
+            Bold = 1,
+            Italic = 2,
+            Mono = 3,
+            Count = 4
         };
 
         Suite() = default;

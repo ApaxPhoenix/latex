@@ -9,7 +9,7 @@ namespace layout {
     void Layer::type(const Type value) noexcept { type_ = value; }
     Layer::Type Layer::type() const noexcept { return type_; }
 
-    void Layer::nodes(memory::Slice<Node> slice) noexcept { elements = slice; }
+    void Layer::nodes(const memory::Slice<Node> slice) noexcept { elements = slice; }
     memory::Slice<Node> Layer::nodes() const noexcept { return elements; }
 
     void Layer::attach(Layer* child) noexcept {
@@ -31,7 +31,7 @@ namespace layout {
     Node::Size Layer::size() const noexcept { return extent; }
     Node::Size Layer::bounds() const noexcept { return limit; }
 
-    Node::Size Layer::measure(Node::Size boundary) noexcept {
+    Node::Size Layer::measure(const Node::Size boundary) noexcept {
         float width = boundary.width - (padding_.left + padding_.right + margin_.left + margin_.right);
         float height = boundary.height - (padding_.top + padding_.bottom + margin_.top + margin_.bottom);
         width = std::max(0.0f, width);
@@ -92,7 +92,7 @@ namespace layout {
         };
 
         if (type_ == Type::Grid) {
-            const memory::Slice children(list.data(), list.size());
+            const memory::Slice children((list.data()), list.size());
             table.layout(location, bounds, children);
         } else {
             Node::Point cursor = location;

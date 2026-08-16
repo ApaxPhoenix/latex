@@ -10,42 +10,46 @@ namespace layout {
     Document::Document(memory::Arena& arena, Pager& pager, typography::Shaper& shaper, const Configuration& configuration) noexcept
         : arena(arena), pager(pager), shaper(shaper), configuration_(configuration) {}
 
-    void Document::margin(float left, float right, float top, float bottom) noexcept {
+    void Document::margin(const float left, const float right, const float top, const float bottom) noexcept {
         configuration_.left = left;
         configuration_.right = right;
         configuration_.top = top;
         configuration_.bottom = bottom;
     }
 
-    void Document::paper(float width, float height) noexcept {
+    void Document::paper(const float width, const float height) noexcept {
         configuration_.width = width;
         configuration_.height = height;
     }
 
-    void Document::grid(std::int32_t columns, float gap) noexcept {
+    void Document::grid(const std::int32_t columns, const float gap) noexcept {
         configuration_.columns = columns;
         configuration_.gap = gap;
     }
 
-    void Document::font(float size, float leading) noexcept {
+    void Document::font(const float size, const float leading) noexcept {
         configuration_.size = size;
         configuration_.leading = leading;
     }
 
-    void Document::indent(float value) noexcept {
+    void Document::indent(const float value) noexcept {
         configuration_.indent = value;
     }
 
-    void Document::spacing(float value) noexcept {
+    void Document::spacing(const float value) noexcept {
         configuration_.spacing = value;
     }
 
-    void Document::gap(float value) noexcept {
+    void Document::gap(const float value) noexcept {
         configuration_.gap = value;
     }
 
-    void Document::align(std::int32_t value) noexcept {
+    void Document::align(const std::int32_t value) noexcept {
         configuration_.align = value;
+    }
+
+    void Document::tolerance(const double value) noexcept {
+        configuration_.tolerance = value;
     }
 
     void Document::configure(const Configuration& configuration) noexcept {
@@ -71,36 +75,30 @@ namespace layout {
 
     std::vector<Node*> Document::tokenize(const typography::Font& font, std::string_view text) const {
         std::vector<Node*> nodes;
+        if (text.empty()) return nodes;
 
-        for (const char letter : text) {
-            if (letter == ' ') {
-                Node* const node = arena.compose<Node>();
-                const Node::Glue glue{
-                    .width = configuration_.size * 0.25f,
-                    .stretch = configuration_.size * 0.125f,
-                    .shrink = configuration_.size * 0.083f,
-                    .stretchorder = Node::Order::Normal,
-                    .shrinkorder = Node::Order::Normal
-                };
-                node->glue(glue);
-                nodes.push_back(node);
-            } else if (letter == '\n') {
+        std::size_t start = 0;
+        while (start < text.size()) {
+            const std::size_t pos = text.find('\n', start);
+            const std::string_view segment = (pos == std::string_view::npos)
+                ? text.substr(start)
+                : text.substr(start, pos - start);
+
+            if (!segment.empty()) {
+                const memory::Slice<Node*> shaped = shaper.shape(font, segment);
+                nodes.insert(nodes.end(), shaped.data, shaped.data + shaped.size());
+            }
+
+            if (pos != std::string_view::npos) {
                 Node* const node = arena.compose<Node>();
                 constexpr Node::Break penalty{
                     .penalty = Node::Penalty{-10000}
                 };
                 node->breaks(penalty);
                 nodes.push_back(node);
+                start = pos + 1;
             } else {
-                Node* const node = arena.compose<Node>();
-                const Node::Glyph glyph{
-                    .width = configuration_.size * 0.6f,
-                    .height = configuration_.size * 0.8f,
-                    .depth = configuration_.size * 0.2f,
-                    .code = static_cast<std::uint32_t>(letter)
-                };
-                node->glyph(glyph);
-                nodes.push_back(node);
+                break;
             }
         }
 
@@ -119,9 +117,9 @@ namespace layout {
     }
 
     void Document::append(memory::Slice<Node*> slice) {
-        for (std::size_t index = 0; index < slice.size(); ++index) {
-            if (slice[index]) {
-                lines.push_back(slice[index]);
+        for (auto & index : slice) {
+            if (index) {
+                lines.push_back(index);
             }
         }
     }
@@ -138,23 +136,23 @@ namespace layout {
     memory::Slice<Node*> Document::compose() const {
         if (lines.empty()) return memory::Slice<Node*>{};
 
-        const Breaker::Configuration config{
+        const Breaker::Configuration configuration{
             .target = measure(),
             .leading = configuration_.leading,
-            .tolerance = 2000.0,
+            .tolerance = configuration_.tolerance > 0.0 ? configuration_.tolerance : 2000.0,
             .penalty = 0.0,
             .skip = configuration_.spacing,
             .limit = 0.0
         };
 
-        Breaker breaker(arena, config);
-        const memory::Slice<Node*> slice(const_cast<Node**>(lines.data()), lines.size());
+        const Breaker breaker(arena, configuration);
+        const memory::Slice slice(const_cast<Node**>(lines.data()), lines.size());
         return breaker.compose(slice);
     }
 
     memory::Slice<Document::Page> Document::split() const {
         const memory::Slice<Node*> items = compose();
-        if (items.empty()) return memory::Slice<Document::Page>{};
+        if (items.empty()) return memory::Slice<Page>{};
 
         for (std::size_t index = 0; index + 1 < items.size(); ++index) {
             items[index]->next(items[index + 1]);

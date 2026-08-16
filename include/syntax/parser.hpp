@@ -1,6 +1,6 @@
 #pragma once
 
-#include "syntax/ast.hpp"
+#include "syntax/node.hpp"
 #include "syntax/mouth.hpp"
 #include "syntax/lexicon.hpp"
 #include "syntax/traceback.hpp"

@@ -1,7 +1,6 @@
 #include "layout/pager.hpp"
 #include <algorithm>
 #include <cmath>
-#include <vector>
 
 namespace layout {
 
@@ -31,13 +30,12 @@ namespace layout {
     memory::Slice<Node*> Pager::split(Node* head, float target) const {
         if (!head) return memory::Slice<Node*>{};
 
-        std::vector<Node*> collected;
-        float accumulated = 0.0f;
+        std::size_t count = 0;
+        float total = 0.0f;
         Node* current = head;
 
-        while (current != nullptr) {
+        while (current) {
             float height = 0.0f;
-
             if (current->type() == Node::Type::Box) {
                 height = current->box().height + current->box().depth;
             } else if (current->type() == Node::Type::Glue) {
@@ -46,19 +44,24 @@ namespace layout {
                 height = current->rule().height + current->rule().depth;
             }
 
-            if (accumulated + height > target && !collected.empty()) {
+            if (total + height > target && count > 0) {
                 break;
             }
 
-            accumulated += height;
-            collected.push_back(current);
+            total += height;
+            ++count;
             current = current->next();
         }
 
-        auto buffer = arena.allocate<Node*>(collected.size());
-        for (std::size_t index = 0; index < collected.size(); ++index) {
-            buffer[index] = collected[index];
+        if (count == 0) return memory::Slice<Node*>{};
+
+        auto buffer = arena.allocate<Node*>(count);
+        current = head;
+        for (std::size_t index = 0; index < count; ++index) {
+            buffer[index] = current;
+            current = current->next();
         }
+
         return buffer;
     }
 
@@ -66,16 +69,14 @@ namespace layout {
         if (!head) return memory::Slice<Page>{};
 
         const float target = context.height > 0.0f ? context.height : configuration_.target;
-        std::vector<Page> pages;
 
+        std::size_t pages = 0;
         Node* current = head;
-        std::int32_t index = 0;
-
-        while (current != nullptr) {
-            std::vector<Node*> nodes;
+        while (current) {
+            std::size_t nodes = 0;
             float height = 0.0f;
 
-            while (current != nullptr) {
+            while (current) {
                 float space = 0.0f;
                 if (current->type() == Node::Type::Box) {
                     space = current->box().height + current->box().depth;
@@ -85,38 +86,77 @@ namespace layout {
                     space = current->rule().height + current->rule().depth;
                 }
 
-                if (height + space > target && !nodes.empty()) {
+                if (height + space > target && nodes > 0) {
                     if (current->type() == Node::Type::Penalty && current->penalty().value < 0) {
-                        nodes.push_back(current);
-                        height += space;
                         current = current->next();
                     }
                     break;
                 }
 
                 height += space;
-                nodes.push_back(current);
+                ++nodes;
                 current = current->next();
             }
 
-            auto buffer = arena.allocate<Node*>(nodes.size());
-            for (std::size_t offset = 0; offset < nodes.size(); ++offset) {
-                buffer[offset] = nodes[offset];
+            if (nodes == 0 && current) {
+                current = current->next();
             }
 
-            pages.push_back(Page{
+            ++pages;
+        }
+
+        if (pages == 0) return memory::Slice<Page>{};
+
+        auto result = arena.allocate<Page>(pages);
+
+        current = head;
+        std::int32_t index = 0;
+
+        for (std::size_t i = 0; i < pages && current; ++i) {
+            Node* start = current;
+            std::size_t nodes = 0;
+            float height = 0.0f;
+
+            while (current) {
+                float space = 0.0f;
+                if (current->type() == Node::Type::Box) {
+                    space = current->box().height + current->box().depth;
+                } else if (current->type() == Node::Type::Glue) {
+                    space = current->glue().width;
+                } else if (current->type() == Node::Type::Rule) {
+                    space = current->rule().height + current->rule().depth;
+                }
+
+                if (height + space > target && nodes > 0) {
+                    if (current->type() == Node::Type::Penalty && current->penalty().value < 0) {
+                        height += space;
+                        ++nodes;
+                        current = current->next();
+                    }
+                    break;
+                }
+
+                height += space;
+                ++nodes;
+                current = current->next();
+            }
+
+            auto buffer = arena.allocate<Node*>(nodes);
+            Node* cursor = start;
+            for (std::size_t j = 0; j < nodes; ++j) {
+                buffer[j] = cursor;
+                cursor = cursor->next();
+            }
+
+            result[i] = Page{
                 .nodes = buffer,
                 .height = height,
                 .index = index++,
                 .badness = badness(height, target, 20.0f)
-            });
+            };
         }
 
-        auto buffer = arena.allocate<Page>(pages.size());
-        for (std::size_t offset = 0; offset < pages.size(); ++offset) {
-            buffer[offset] = pages[offset];
-        }
-        return buffer;
+        return result;
     }
 
 }

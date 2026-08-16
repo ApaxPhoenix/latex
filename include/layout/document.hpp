@@ -30,6 +30,7 @@ namespace layout {
             float indent{18.0f};
             float spacing{0.0f};
             std::int32_t align{0};
+            double tolerance{2000.0};
         };
 
         Document(memory::Arena& arena, Pager& pager, typography::Shaper& shaper) noexcept;
@@ -43,6 +44,7 @@ namespace layout {
         void spacing(float value) noexcept;
         void gap(float value) noexcept;
         void align(std::int32_t value) noexcept;
+        void tolerance(double value) noexcept;
         void configure(const Configuration& configuration) noexcept;
         [[nodiscard]] const Configuration& configuration() const noexcept;
 

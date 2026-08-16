@@ -9,12 +9,12 @@ namespace semantics {
     class Union {
     public:
         void push(const Scope::Type type = Scope::Type::Group) {
-            scope_.push(type);
+            scopes.push(type);
             registers_.push();
         }
 
         void pop() {
-            scope_.pop();
+            scopes.pop();
             registers_.pop();
         }
 
