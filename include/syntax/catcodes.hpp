@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <vector>
 
 namespace syntax {
@@ -24,53 +25,72 @@ namespace syntax {
             Invalid    // Unprintable ASCII or illegal byte
         };
 
+        struct Entry {
+            std::size_t symbol;
+            Category category;
+        };
+
         constexpr CatCodes() noexcept {
-            entries.fill(Category::Other);
+            this->table.fill(Category::Other);
 
             for (int code = 'a'; code <= 'z'; ++code) {
-                entries[static_cast<std::size_t>(code)] = Category::Letter;
+                this->table[static_cast<std::size_t>(code)] = Category::Letter;
             }
             for (int code = 'A'; code <= 'Z'; ++code) {
-                entries[static_cast<std::size_t>(code)] = Category::Letter;
+                this->table[static_cast<std::size_t>(code)] = Category::Letter;
             }
 
-            entries[static_cast<std::size_t>('\\')] = Category::Escape;
-            entries[static_cast<std::size_t>('{')]  = Category::Group;
-            entries[static_cast<std::size_t>('}')]  = Category::Group;
-            entries[static_cast<std::size_t>('$')]  = Category::Shift;
-            entries[static_cast<std::size_t>('&')]  = Category::Align;
-            entries[static_cast<std::size_t>('#')]  = Category::Parameter;
-            entries[static_cast<std::size_t>('^')]  = Category::Mark;
-            entries[static_cast<std::size_t>('_')]  = Category::Index;
-            entries[static_cast<std::size_t>('%')]  = Category::Comment;
-            entries[static_cast<std::size_t>(' ')]  = Category::Space;
-            entries[static_cast<std::size_t>('\t')] = Category::Space;
-            entries[static_cast<std::size_t>('\n')] = Category::Space;
-            entries[static_cast<std::size_t>('~')]  = Category::Active;
+            this->table[static_cast<std::size_t>('\\')] = Category::Escape;
+            this->table[static_cast<std::size_t>('{')]  = Category::Group;
+            this->table[static_cast<std::size_t>('}')]  = Category::Group;
+            this->table[static_cast<std::size_t>('$')]  = Category::Shift;
+            this->table[static_cast<std::size_t>('&')]  = Category::Align;
+            this->table[static_cast<std::size_t>('#')]  = Category::Parameter;
+            this->table[static_cast<std::size_t>('^')]  = Category::Mark;
+            this->table[static_cast<std::size_t>('_')]  = Category::Index;
+            this->table[static_cast<std::size_t>('%')]  = Category::Comment;
+            this->table[static_cast<std::size_t>(' ')]  = Category::Space;
+            this->table[static_cast<std::size_t>('\t')] = Category::Space;
+            this->table[static_cast<std::size_t>('\n')] = Category::Space;
+            this->table[static_cast<std::size_t>('~')]  = Category::Active;
         }
 
-        constexpr void set(const char symbol, const Category category) noexcept {
-            entries[static_cast<std::size_t>(static_cast<unsigned char>(symbol))] = category;
+        void set(const char symbol, const Category category, const bool global = false) {
+            const auto code = static_cast<std::size_t>(static_cast<unsigned char>(symbol));
+            if (code >= this->table.size()) return;
+
+            if (!global && !this->marks.empty()) {
+                this->history.push_back(Entry{code, this->table[code]});
+            }
+
+            this->table[code] = category;
         }
 
         [[nodiscard]] constexpr Category get(const char symbol) const noexcept {
-            return entries[static_cast<std::size_t>(static_cast<unsigned char>(symbol))];
+            return this->table[static_cast<std::size_t>(static_cast<unsigned char>(symbol))];
         }
 
         void push() {
-            stacks.push_back(entries);
+            this->marks.push_back(this->history.size());
         }
 
         void pop() {
-            if (!stacks.empty()) {
-                entries = stacks.back();
-                stacks.pop_back();
+            if (this->marks.empty()) return;
+
+            const std::size_t mark = this->marks.back();
+            this->marks.pop_back();
+
+            while (this->history.size() > mark) {
+                const auto entry = this->history.back();
+                this->history.pop_back();
+                this->table[entry.symbol] = entry.category;
             }
         }
 
     private:
-        std::array<Category, 256> entries{};
-        std::vector<std::array<Category, 256>> stacks{};
+        std::array<Category, 256> table{};
+        std::vector<Entry> history{};
+        std::vector<std::size_t> marks{};
     };
 
 }

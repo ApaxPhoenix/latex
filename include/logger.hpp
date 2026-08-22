@@ -86,12 +86,10 @@ public:
 private:
     static inline auto mask = Type::All;
     static inline auto threshold = Level::Traceback;
-    static inline bool ansi = true;
+    static inline bool ansi = false;
     static inline std::ofstream stream;
     static inline std::mutex mutex;
 
     static std::string_view name(Type target) noexcept;
     static std::string_view name(Level value) noexcept;
-    static std::string_view style(Type target) noexcept;
-    static std::string_view style(Level value) noexcept;
 };

@@ -15,6 +15,7 @@ namespace syntax {
 
     void Mouth::push() {
         this->marks.push_back(this->records.size());
+        this->union_.push();
         Logger::fmt(Logger::Type::Mouth, Logger::Level::Debug, "State push (depth={})", this->marks.size());
     }
 
@@ -26,15 +27,18 @@ namespace syntax {
             this->tracebacks_.emplace_back(Traceback::Type::Scope, location, message);
             return;
         }
+
+        this->union_.pop();
+
         const std::size_t mark = this->marks.back();
         this->marks.pop_back();
 
         for (std::size_t count = this->records.size(); count > mark; --count) {
-            auto record = std::move(this->records.back());
+            auto [symbol_, macros_, active_] = std::move(this->records.back());
             this->records.pop_back();
-            if (record.symbol < this->macros.size()) {
-                this->macros[record.symbol] = std::move(record.macros);
-                this->macros[record.symbol].active = record.active;
+            if (symbol_ < this->macros.size()) {
+                this->macros[symbol_] = std::move(macros_);
+                this->macros[symbol_].active = active_;
             }
         }
     }
@@ -132,7 +136,7 @@ namespace syntax {
                     Token token = this->cursor.advance();
                     if (token.values == "[") scope++;
                     else if (token.values == "]") scope--;
-                    if (scope > 0) result.push_back(std::move(token));
+                    if (scope > 0) result.push_back(token);
                 }
             } else {
                 result = parameter.fallbacks;
@@ -166,7 +170,7 @@ namespace syntax {
                     if (token.values == "{") scope++;
                     else if (token.values == "}" && scope > 0) scope--;
                 }
-                result.push_back(std::move(token));
+                result.push_back(token);
             }
 
             if (!matched) {
@@ -188,7 +192,7 @@ namespace syntax {
                         if (element.values == "{") scope++;
                         else if (element.values == "}") scope--;
                     }
-                    if (scope > 0) result.push_back(std::move(element));
+                    if (scope > 0) result.push_back(element);
                 }
                 if (scope > 0) {
                     const std::string message = "Macro argument block truncation missing trailing brace";

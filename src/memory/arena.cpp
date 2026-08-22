@@ -1,6 +1,7 @@
 #include "memory/arena.hpp"
 
 #include <cstring>
+#include <memory>
 
 namespace memory {
 
@@ -18,25 +19,33 @@ namespace memory {
         if (blocks.empty()) grow(size);
 
         auto* block = &blocks.back();
-        std::size_t offset = (block->offset + alignment - 1) & ~(static_cast<std::size_t>(alignment) - 1);
 
-        if (offset + size > block->capacity) {
-            grow(size);
+        auto address = reinterpret_cast<std::uintptr_t>(block->buffer.get() + block->offset);
+        std::uintptr_t aligned = address + alignment - 1 & ~(alignment - 1);
+        std::size_t padding = aligned - address;
+
+        if (block->offset + padding + size > block->capacity) {
+            grow(size + alignment);
             block = &blocks.back();
-            offset = (block->offset + alignment - 1) & ~(static_cast<std::size_t>(alignment) - 1);
+
+            address = reinterpret_cast<std::uintptr_t>(block->buffer.get());
+            aligned = (address + alignment - 1) & ~(alignment - 1);
+            padding = aligned - address;
         }
 
-        void* pointer = block->buffer.get() + offset;
-        block->offset = offset + size;
-        return pointer;
+        std::uint8_t* destination = block->buffer.get() + block->offset + padding;
+        block->offset += padding + size;
+
+        return destination;
     }
 
     std::string_view Arena::copy(const std::string_view input) {
         if (input.empty()) return {};
 
-        auto* pointer = static_cast<char*>(allocate(input.size(), alignof(char)));
-        std::memcpy(pointer, input.data(), input.size());
-        return std::string_view(pointer, input.size());
+        return std::string_view(
+            static_cast<const char*>(std::memcpy(allocate(input.size(), alignof(char)), input.data(), input.size())),
+            input.size()
+        );
     }
 
     void Arena::grow(const std::size_t minimum) {

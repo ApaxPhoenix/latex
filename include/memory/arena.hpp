@@ -2,9 +2,9 @@
 
 #include "memory/slice.hpp"
 
-#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <new>
 #include <string_view>
 #include <utility>
 #include <vector>

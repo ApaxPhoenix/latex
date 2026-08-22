@@ -4,7 +4,7 @@
 #include "syntax/lexicon.hpp"
 #include "syntax/tokens.hpp"
 #include "syntax/traceback.hpp"
-#include "semantics/union.hpp"
+#include "syntax/semantics/union.hpp"
 #include "memory/arena.hpp"
 
 #include <functional>

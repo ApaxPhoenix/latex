@@ -42,7 +42,7 @@ namespace syntax {
         };
 
         while (true) {
-            auto [symbol, values, current, category] = mouth_.expand();
+            const auto [symbol, category, location, values] = mouth_.expand();
             if (values.empty()) {
                 flush();
                 Logger::log(Logger::Type::Parser, Logger::Level::Debug, "Parser reached end of expansion stream");
@@ -62,28 +62,28 @@ namespace syntax {
             if (symbol == paragraph) {
                 flush();
                 Logger::fmt(Logger::Type::Parser, Logger::Level::Debug,
-                            "Constructed Paragraph node at line {} column {}", current.line, current.column);
-                nodes.push_back(arena_.compose<Node>(Node::Type::Paragraph, values, current, memory::Slice<Node*>{}));
+                            "Constructed Paragraph node at line {} column {}", location.line, location.column);
+                nodes.push_back(arena_.compose<Node>(Node::Type::Paragraph, values, location, memory::Slice<Node*>{}));
                 continue;
             }
 
-            if (category == CatCodes::Category::Escape && symbol >= handlers.size()) {
+            if (category == CatCodes::Category::Escape && (symbol >= handlers.size() || !handlers[symbol])) {
                 flush();
                 const std::string message = "Undefined macro or unhandled command primitive: " + std::string(values);
 
                 Logger::fmt(Logger::Type::Parser, Logger::Level::Error,
-                            "Parsing error at line {} column {}: {}", current.line, current.column, message);
+                            "Parsing error at line {} column {}: {}", location.line, location.column, message);
 
                 this->tracebacks_.emplace_back(
                     Traceback::Type::Macro,
-                    current,
+                    location,
                     message
                 );
                 continue;
             }
 
             if (buffer.empty()) {
-                position = current;
+                position = location;
             }
             buffer += values;
         }
@@ -103,7 +103,7 @@ namespace syntax {
 
         memory::Slice<Node*> slice = arena_.allocate<Node*>(nodes.size());
         if (!nodes.empty()) {
-            std::copy(nodes.begin(), nodes.end(), slice.begin());
+            std::ranges::copy(nodes, slice.begin());
         }
 
         Logger::fmt(Logger::Type::Parser, Logger::Level::Informative,

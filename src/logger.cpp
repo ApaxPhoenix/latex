@@ -4,28 +4,17 @@
 #include <format>
 #include <iostream>
 
-#if defined(_WIN32)
-#include <windows.h>
-#endif
-
 void Logger::init(const int count, char** arguments) {
-#if defined(_WIN32)
-    const HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    DWORD modeOut = 0;
-    if (GetConsoleMode(hOut, &modeOut)) {
-        SetConsoleMode(hOut, modeOut | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-    }
-    const HANDLE hErr = GetStdHandle(STD_ERROR_HANDLE);
-    DWORD modeErr = 0;
-    if (GetConsoleMode(hErr, &modeErr)) {
-        SetConsoleMode(hErr, modeErr | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-    }
-#endif
+    bool selective = false;
 
     for (int index = 1; index < count; ++index) {
         if (const std::string_view option(arguments[index]); option == "--debug" || option == "-d") {
-            enable(Type::All);
+            types(Type::All);
         } else if (option.starts_with("--debug=")) {
+            if (!selective) {
+                types(Type::None);
+                selective = true;
+            }
             const std::string_view value = option.substr(8);
             if (value.contains("lexer"))     enable(Type::Lexer);
             if (value.contains("mouth"))     enable(Type::Mouth);
@@ -99,13 +88,7 @@ void Logger::log(const Type target, const Level value, const std::string_view te
     const std::string_view tag = name(target);
     const std::string_view rank = name(value);
 
-    std::string output;
-    if (ansi && !stream.is_open()) {
-        output = std::format("\033[90m[{}]\033[0m {}[{}]\033[0m {}[{}]\033[0m {}\n",
-                             stamp, style(target), tag, style(value), rank, text);
-    } else {
-        output = std::format("[{}] [{}] [{}] {}\n", stamp, tag, rank, text);
-    }
+    const std::string output = std::format("[{}] [{}] [{}] {}\n", stamp, tag, rank, text);
 
     std::clog << output << std::flush;
     if (stream.is_open()) {
@@ -135,28 +118,5 @@ std::string_view Logger::name(const Level value) noexcept {
         case Level::Warning:     return "Warning";
         case Level::Error:       return "Error";
         default:                 return "Log";
-    }
-}
-
-std::string_view Logger::style(const Type target) noexcept {
-    switch (target) {
-        case Type::Lexer:     return "\033[36m";
-        case Type::Mouth:     return "\033[35m";
-        case Type::Parser:    return "\033[33m";
-        case Type::Layout:    return "\033[32m";
-        case Type::Memory:    return "\033[34m";
-        case Type::Semantics: return "\033[96m";
-        default:              return "\033[37m";
-    }
-}
-
-std::string_view Logger::style(const Level value) noexcept {
-    switch (value) {
-        case Level::Traceback:   return "\033[90m";
-        case Level::Debug:       return "\033[37m";
-        case Level::Informative: return "\033[32m";
-        case Level::Warning:     return "\033[33m";
-        case Level::Error:       return "\033[31m";
-        default:                 return "\033[0m";
     }
 }
