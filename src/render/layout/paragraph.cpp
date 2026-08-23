@@ -39,6 +39,10 @@ namespace render::layout {
         shift = value;
     }
 
+    Node* Paragraph::node() const noexcept {
+        return tree;
+    }
+
     float Paragraph::layout(
         const typography::Shaper& shaper,
         Cache& cache,

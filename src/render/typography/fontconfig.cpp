@@ -1,9 +1,14 @@
 #include "typography/fontconfig.hpp"
 #include "logger.hpp"
+
+#ifndef __EMSCRIPTEN__
 #include <cstring>
 #include <filesystem>
+#endif
 
 namespace render::typography {
+
+#ifndef __EMSCRIPTEN__
 
     namespace {
         const char* string(memory::Arena& scratch, const std::string_view view) noexcept {
@@ -158,5 +163,102 @@ namespace render::typography {
 
         return slice;
     }
+
+#else
+
+    FontConfig::FontConfig(memory::Arena& arena, const std::size_t slots) noexcept
+        : arena(arena), handle(nullptr), slots(slots > 0 ? slots : 256) {
+        auto [data, count] = arena.allocate<Node*>(this->slots);
+        table = data;
+        for (std::size_t index = 0; index < this->slots; ++index) table[index] = nullptr;
+    }
+
+    FontConfig::~FontConfig() noexcept {
+        dispose();
+    }
+
+    void FontConfig::dispose() noexcept {}
+
+    bool FontConfig::compose(const std::string_view path) const noexcept {
+        if (path.empty() || !table) return false;
+
+        std::size_t position = path.find_last_of("/\\");
+        std::string_view filename = (position == std::string_view::npos) ? path : path.substr(position + 1);
+        std::size_t boundary = filename.find_last_of('.');
+        std::string_view family = (boundary == std::string_view::npos) ? filename : filename.substr(0, boundary);
+
+        std::size_t hash = 5381;
+        for (const char letter : family) hash = ((hash << 5) + hash) + static_cast<std::size_t>(letter);
+        const std::size_t slot = hash % slots;
+
+        for (const Node* current = table[slot]; current; current = current->next) {
+            if (current->key == family) return true;
+        }
+
+        Node* node = arena.compose<Node>();
+        node->key = arena.copy(family);
+        node->value = arena.copy(path);
+        node->next = table[slot];
+        table[slot] = node;
+
+        return true;
+    }
+
+    std::optional<std::string_view> FontConfig::find(memory::Arena& scratch, const std::string_view query) const noexcept {
+        if (query.empty() || !table) return std::nullopt;
+
+        std::size_t hash = 5381;
+        for (const char letter : query) hash = ((hash << 5) + hash) + static_cast<std::size_t>(letter);
+        const std::size_t slot = hash % slots;
+
+        for (const Node* current = table[slot]; current; current = current->next) {
+            if (current->key == query) return current->value;
+        }
+
+        for (std::size_t index = 0; index < slots; ++index) {
+            for (const Node* current = table[index]; current; current = current->next) {
+                if (current->key.find(query) != std::string_view::npos || query.find(current->key) != std::string_view::npos) {
+                    return current->value;
+                }
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    memory::Slice<FontConfig::Entry> FontConfig::list(const std::string_view path) const noexcept {
+        if (!table) return {};
+
+        std::size_t count = 0;
+        for (std::size_t index = 0; index < slots; ++index) {
+            for (const Node* current = table[index]; current; current = current->next) {
+                if (path.empty() || current->value.find(path) != std::string_view::npos) {
+                    ++count;
+                }
+            }
+        }
+
+        if (count == 0) return {};
+
+        auto slice = arena.allocate<Entry>(count);
+        std::size_t offset = 0;
+
+        for (std::size_t index = 0; index < slots && offset < count; ++index) {
+            for (const Node* current = table[index]; current; current = current->next) {
+                if (path.empty() || current->value.find(path) != std::string_view::npos) {
+                    slice[offset++] = Entry{
+                        .family = current->key,
+                        .path = current->value,
+                        .weight = 400,
+                        .slant = 0
+                    };
+                }
+            }
+        }
+
+        return slice;
+    }
+
+#endif
 
 }

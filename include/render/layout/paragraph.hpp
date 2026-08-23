@@ -27,6 +27,7 @@ namespace render::layout {
         [[nodiscard]] float height() const noexcept;
         [[nodiscard]] float offset() const noexcept;
         void offset(float value) noexcept;
+        [[nodiscard]] Node* node() const noexcept;
 
         float layout(
             const typography::Shaper& shaper,
