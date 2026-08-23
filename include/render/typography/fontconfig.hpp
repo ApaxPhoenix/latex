@@ -24,7 +24,7 @@ namespace render::typography {
             int slant{0};
         };
 
-        FontConfig(memory::Arena& arena, std::size_t slots = 256) noexcept;
+        explicit FontConfig(memory::Arena& arena, std::size_t slots = 256) noexcept;
         ~FontConfig() noexcept;
 
         FontConfig(const FontConfig&) = delete;

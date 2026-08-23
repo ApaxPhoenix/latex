@@ -1,91 +1,99 @@
-#include "syntax/parser.hpp"
-#include "syntax/tokens.hpp"
-#include "syntax/traceback.hpp"
+#include "logger.hpp"
+#include "layout/document.hpp"
+#include "layout/line.hpp"
+#include "layout/pager.hpp"
+#include "memory/arena.hpp"
+#include "syntax/cursor.hpp"
 #include "syntax/expression/parser.hpp"
 #include "syntax/expression/unicodes.hpp"
-#include "syntax/semantics/union.hpp"
-#include "syntax/cursor.hpp"
-#include "syntax/mouth.hpp"
 #include "syntax/lexicon.hpp"
+#include "syntax/mouth.hpp"
+#include "syntax/parser.hpp"
+#include "syntax/semantics/union.hpp"
+#include "syntax/tokens.hpp"
+#include "syntax/traceback.hpp"
+#include "typography/font.hpp"
 #include "typography/fontconfig.hpp"
 #include "typography/registry.hpp"
 #include "typography/shaper.hpp"
-#include "typography/font.hpp"
-#include "memory/arena.hpp"
 
-#include <iostream>
-#include <string_view>
-#include <vector>
 #include <chrono>
 #include <filesystem>
+#include <iomanip>
+#include <iostream>
+#include <string_view>
 #include <tuple>
+#include <vector>
 
-int main([[maybe_unused]] int argc, char* argv[]) {
+int main(int count, char* args[]) {
+    Logger::init(count, args);
+    Logger::types(Logger::Type::None);
+    Logger::level(Logger::Level::Error);
+
     const auto start = std::chrono::high_resolution_clock::now();
 
     memory::Arena arena(1024 * 1024);
     memory::Arena scratch(64 * 1024);
 
-    const std::filesystem::path executable = std::filesystem::absolute(argv[0]);
-    const std::filesystem::path root = executable.parent_path().parent_path();
-    const std::filesystem::path assets = root / "assets";
-    const std::filesystem::path fonts = assets / "fonts";
-    const std::filesystem::path alias_config = fonts / "aliases.conf";
+    const auto time = std::chrono::high_resolution_clock::now();
 
-    if (!std::filesystem::exists(alias_config)) {
-        std::cerr << "Alias configuration file missing at: " << alias_config.string() << '\n';
+    const std::filesystem::path binary = std::filesystem::absolute(args[0]);
+    const std::filesystem::path root = binary.parent_path().parent_path();
+    const std::filesystem::path assets = root / "assets";
+    const std::filesystem::path paths = assets / "fonts";
+    const std::filesystem::path config = paths / "aliases.conf";
+
+    if (!std::filesystem::exists(config)) {
+        std::cerr << "Alias configuration file missing at: " << config.string() << '\n';
         return 1;
     }
 
     #if defined(_WIN32)
-        _putenv_s("FONTCONFIG_FILE", alias_config.string().c_str());
+        _putenv_s("FONTCONFIG_FILE", config.string().c_str());
     #else
-        setenv("FONTCONFIG_FILE", alias_config.string().c_str(), 1);
+        setenv("FONTCONFIG_FILE", config.string().c_str(), 1);
     #endif
 
-    render::typography::FontConfig configuration(arena);
-    if (!configuration.compose(alias_config.string())) {
-        std::cerr << "Configuration load failure: " << alias_config.string() << '\n';
+    render::typography::FontConfig options(arena);
+    if (!options.compose(config.string())) {
+        std::cerr << "Configuration load failure: " << config.string() << '\n';
         return 1;
     }
 
-    std::size_t count = 0;
-    if (std::filesystem::exists(fonts)) {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(fonts)) {
+    std::size_t total = 0;
+    if (std::filesystem::exists(paths)) {
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(paths)) {
             if (entry.is_regular_file()) {
-                const auto extension = entry.path().extension().string();
-                if (extension == ".otf" || extension == ".ttf" || extension == ".pfb") {
-                    if (configuration.compose(entry.path().string())) {
-                        ++count;
+                if (const auto extension = entry.path().extension().string(); extension == ".otf" || extension == ".ttf" || extension == ".pfb") {
+                    if (options.compose(entry.path().string())) {
+                        ++total;
                     }
                 }
             }
         }
     }
 
-    std::cout << "Registered font files count: " << count << '\n';
-
-    const auto location = configuration.find(scratch, "text");
+    const auto location = options.find(scratch, "text");
     if (!location) {
         std::cerr << "Font query failure for family 'text'\n";
         return 1;
     }
 
-    std::cout << "Resolved text font path: " << *location << '\n';
-
     render::typography::Registry registry(arena);
-    constexpr render::typography::Registry::Spec specification{
+    constexpr render::typography::Registry::Spec spec{
         .family = "text",
         .weight = 400,
         .slant = 0,
         .size = 12.0f
     };
 
-    render::typography::Font* font = registry.get(specification, *location);
+    render::typography::Font* font = registry.get(spec, *location);
     if (!font) {
         std::cerr << "Registry font instantiation failure\n";
         return 1;
     }
+
+    const auto mark = std::chrono::high_resolution_clock::now();
 
     syntax::Lexicon lexicon(arena);
     syntax::semantics::Union state{};
@@ -118,33 +126,85 @@ int main([[maybe_unused]] int argc, char* argv[]) {
     });
 
     const memory::Slice<syntax::Node*> outputs = parser.parse();
+    const auto step = std::chrono::high_resolution_clock::now();
 
     render::typography::Shaper shaper(arena);
-    const render::typography::Font* fallback_chain[] = { font };
+    const render::typography::Font* chain[] = { font };
     constexpr std::string_view sample = "f(x) dx";
-    
+
     const auto glyphs = shaper.shape(
-        memory::Slice{fallback_chain, 1},
+        memory::Slice{chain, 1},
         sample,
         {}
     );
 
-    const auto metric = font->metrics(64.0f);
+    const auto metric = font->metrics(12.0f);
+    const auto point = std::chrono::high_resolution_clock::now();
 
+    render::layout::Document::Configuration layout{
+        .width = 612.0f,
+        .height = 792.0f,
+        .left = 72.0f,
+        .right = 72.0f,
+        .top = 72.0f,
+        .bottom = 72.0f,
+        .leading = 14.0f
+    };
+
+    render::layout::Document document(arena, scratch, shaper, layout);
+    document.append(sample, *font, 12.0f);
+    document.append("Knuth-Plass optimal paragraph line breaking pass.", *font, 12.0f);
+
+    document.layout();
+    const auto node = std::chrono::high_resolution_clock::now();
+
+    auto* box = render::layout::Line::horizontal(arena, glyphs, layout.width);
+
+    render::layout::Pager::Configuration page{ .height = layout.height };
+    render::layout::Pager pager(arena, page);
+
+    render::layout::Pager::Context context{
+        .height = layout.height - layout.top - layout.bottom
+    };
+
+    const auto pages = pager.paginate(box, context);
     const auto finish = std::chrono::high_resolution_clock::now();
-    const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start).count();
 
     if (!parser.tracebacks().empty()) {
         for (const auto& trace : parser.tracebacks()) {
             std::cerr << "Traceback error: " << trace.format() << "\n";
         }
-    } else {
-        std::cout << "Parsed top-level AST nodes: " << outputs.count << '\n';
-        std::cout << "Shaped layout nodes count: " << glyphs.count << '\n';
-        std::cout << "Loaded font ascent: " << metric.ascent << ", height: " << metric.height << '\n';
-        std::cout << "Total execution time: " << duration << " microseconds\n";
+        options.dispose();
+        return 1;
     }
 
-    configuration.dispose();
+    const auto first = std::chrono::duration<double, std::micro>(mark - time).count();
+    const auto second = std::chrono::duration<double, std::micro>(step - mark).count();
+    const auto third = std::chrono::duration<double, std::micro>(point - step).count();
+    const auto fourth = std::chrono::duration<double, std::micro>(node - point).count();
+    const auto fifth = std::chrono::duration<double, std::micro>(finish - node).count();
+    const auto whole = std::chrono::duration<double, std::micro>(finish - start).count();
+
+    const auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - node).count();
+
+    std::cout << std::fixed << std::setprecision(4);
+
+    std::cout << "[Pipeline Metrics]\n";
+    std::cout << "Registered font files     : " << total << '\n';
+    std::cout << "Top-level AST Nodes       : " << outputs.count << '\n';
+    std::cout << "Shaped Glyph Nodes        : " << glyphs.count << '\n';
+    std::cout << "Document Paragraphs       : " << document.paragraphs().count << '\n';
+    std::cout << "Paginated Page Count      : " << pages.count << '\n';
+    std::cout << "Font Metrics Ascent/Height: " << metric.ascent << " / " << metric.height << "\n\n";
+
+    std::cout << "[Subsystem Benchmarks]\n";
+    std::cout << "Typography & Font Init    : " << first << " us\n";
+    std::cout << "Pratt Syntax Parsing      : " << second << " us\n";
+    std::cout << "HarfBuzz Glyph Shaping    : " << third << " us\n";
+    std::cout << "Knuth-Plass Layout Pass   : " << fourth << " us\n";
+    std::cout << "Pager Pagination Pass     : " << fifth << " us (" << nanos << " ns)\n";
+    std::cout << "Total End-to-End Execution: " << whole << " us\n";
+
+    options.dispose();
     return 0;
 }
