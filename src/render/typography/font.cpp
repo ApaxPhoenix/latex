@@ -4,7 +4,7 @@
 #include <harfbuzz/hb-ot.h>
 #include <utility>
 
-namespace typography {
+namespace render::typography {
 
     Font::~Font() noexcept {
         dispose();

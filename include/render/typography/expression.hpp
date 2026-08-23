@@ -2,11 +2,13 @@
 
 #include "typography/font.hpp"
 
-namespace typography {
+#include <cstdint>
+
+namespace render::typography {
 
     class Expression {
     public:
-        struct Metrics {
+        struct Metric {
             float axis{0.0f};
             float fraction{0.0f};
             float radical{0.0f};
@@ -20,16 +22,15 @@ namespace typography {
             float advance{0.0f};
         };
 
-        explicit Expression(const Font& font, float divisor = 64.0f) noexcept;
+        explicit Expression(const Font& font) noexcept;
 
+        [[nodiscard]] Metric metrics() const noexcept;
         [[nodiscard]] std::uint32_t glyph(std::uint32_t code) const noexcept;
-        [[nodiscard]] Variant scale(std::uint32_t glyph, float height, float divisor = 64.0f) const noexcept;
-        [[nodiscard]] float kern(std::uint32_t left, std::uint32_t right, float divisor = 64.0f) const noexcept;
-        [[nodiscard]] constexpr const Metrics& metrics() const noexcept { return data; }
+        [[nodiscard]] Variant scale(std::uint32_t glyph, float height) const noexcept;
+        [[nodiscard]] float kern(std::uint32_t first, std::uint32_t second) const noexcept;
 
     private:
         const Font& parent;
-        Metrics data{};
     };
 
 }

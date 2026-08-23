@@ -6,7 +6,7 @@
 
 #include <string_view>
 
-namespace typography {
+namespace render::typography {
 
     class Registry {
     public:
@@ -24,7 +24,7 @@ namespace typography {
             Node* next{nullptr};
         };
 
-        explicit Registry(memory::Arena& arena, std::size_t slots = 256, std::size_t seed = 5381) noexcept;
+        explicit Registry(memory::Arena& arena, std::size_t slots = 256) noexcept;
         ~Registry() noexcept;
 
         Registry(const Registry&) = delete;
@@ -35,7 +35,6 @@ namespace typography {
     private:
         memory::Arena& arena;
         std::size_t slots{0};
-        std::size_t seed{0};
         Node** table{nullptr};
     };
 

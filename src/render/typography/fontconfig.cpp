@@ -3,7 +3,7 @@
 #include <cstring>
 #include <filesystem>
 
-namespace typography {
+namespace render::typography {
 
     namespace {
         const char* string(memory::Arena& scratch, const std::string_view view) noexcept {
@@ -14,10 +14,10 @@ namespace typography {
         }
     }
 
-    FontConfig::FontConfig(memory::Arena& arena, const std::size_t slots, const std::size_t seed) noexcept
-        : arena(arena), handle(FcConfigCreate()), slots(slots > 0 ? slots : 256), seed(seed) {
-        auto slice = arena.allocate<Node*>(this->slots);
-        table = slice.data;
+    FontConfig::FontConfig(memory::Arena& arena, const std::size_t slots) noexcept
+        : arena(arena), handle(FcConfigCreate()), slots(slots > 0 ? slots : 256) {
+        auto [data, count] = arena.allocate<Node*>(this->slots);
+        table = data;
         for (std::size_t index = 0; index < this->slots; ++index) table[index] = nullptr;
         if (handle) {
             FcConfigSetCurrent(handle);
@@ -72,7 +72,7 @@ namespace typography {
     std::optional<std::string_view> FontConfig::find(memory::Arena& scratch, const std::string_view query) const noexcept {
         if (query.empty() || !table) return std::nullopt;
 
-        std::size_t hash = seed;
+        std::size_t hash = 5381;
         for (const char letter : query) hash = ((hash << 5) + hash) + static_cast<std::size_t>(letter);
         const std::size_t slot = hash % slots;
 

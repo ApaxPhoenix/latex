@@ -1,10 +1,10 @@
 #include "typography/registry.hpp"
 #include "logger.hpp"
 
-namespace typography {
+namespace render::typography {
 
-    Registry::Registry(memory::Arena& arena, const std::size_t slots, const std::size_t seed) noexcept
-        : arena(arena), slots(slots > 0 ? slots : 256), seed(seed) {
+    Registry::Registry(memory::Arena& arena, const std::size_t slots) noexcept
+        : arena(arena), slots(slots > 0 ? slots : 256) {
         auto [data, count] = arena.allocate<Node*>(this->slots);
         table = data;
         for (std::size_t index = 0; index < this->slots; ++index) table[index] = nullptr;
@@ -28,8 +28,8 @@ namespace typography {
             return nullptr;
         }
 
-        std::size_t hash = seed;
-        for (const char letter : spec.family) hash = ((hash << 5) + hash) + static_cast<std::size_t>(letter);
+        std::size_t hash = 5381;
+        for (const char letter : spec.family) hash = (hash << 5) + hash + static_cast<std::size_t>(letter);
         hash ^= static_cast<std::size_t>(spec.weight) << 8;
         hash ^= static_cast<std::size_t>(spec.slant) << 16;
         hash ^= static_cast<std::size_t>(spec.size * 100.0f);

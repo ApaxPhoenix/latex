@@ -20,31 +20,32 @@
 #include <filesystem>
 #include <tuple>
 
-int main(int _, char* pointers[]) {
+int main([[maybe_unused]] int argc, char* argv[]) {
     const auto start = std::chrono::high_resolution_clock::now();
 
     memory::Arena arena(1024 * 1024);
     memory::Arena scratch(64 * 1024);
 
-    const std::filesystem::path executable = std::filesystem::absolute(pointers[0]);
+    const std::filesystem::path executable = std::filesystem::absolute(argv[0]);
     const std::filesystem::path root = executable.parent_path().parent_path();
     const std::filesystem::path assets = root / "assets";
     const std::filesystem::path fonts = assets / "fonts";
+    const std::filesystem::path alias_config = fonts / "aliases.conf";
 
-    if (!std::filesystem::exists(fonts / "aliases.conf")) {
-        std::cerr << "Alias configuration file missing at: " << (fonts / "aliases.conf").string() << '\n';
+    if (!std::filesystem::exists(alias_config)) {
+        std::cerr << "Alias configuration file missing at: " << alias_config.string() << '\n';
         return 1;
     }
 
-#if defined(_WIN32)
-    _putenv_s("FONTCONFIG_FILE", (fonts / "aliases.conf").string().c_str());
-#else
-    setenv("FONTCONFIG_FILE", (fonts / "aliases.conf").string().c_str(), 1);
-#endif
+    #if defined(_WIN32)
+        _putenv_s("FONTCONFIG_FILE", alias_config.string().c_str());
+    #else
+        setenv("FONTCONFIG_FILE", alias_config.string().c_str(), 1);
+    #endif
 
-    typography::FontConfig configuration(arena);
-    if (!configuration.compose((fonts / "aliases.conf").string())) {
-        std::cerr << "Configuration load failure: " << (fonts / "aliases.conf").string() << '\n';
+    render::typography::FontConfig configuration(arena);
+    if (!configuration.compose(alias_config.string())) {
+        std::cerr << "Configuration load failure: " << alias_config.string() << '\n';
         return 1;
     }
 
@@ -72,15 +73,15 @@ int main(int _, char* pointers[]) {
 
     std::cout << "Resolved text font path: " << *location << '\n';
 
-    typography::Registry registry(arena);
-    constexpr typography::Registry::Spec specification{
+    render::typography::Registry registry(arena);
+    constexpr render::typography::Registry::Spec specification{
         .family = "text",
         .weight = 400,
         .slant = 0,
         .size = 12.0f
     };
 
-    typography::Font* font = registry.get(specification, *location);
+    render::typography::Font* font = registry.get(specification, *location);
     if (!font) {
         std::cerr << "Registry font instantiation failure\n";
         return 1;
@@ -113,17 +114,17 @@ int main(int _, char* pointers[]) {
         );
         syntax::expression::Node* tree = expression.parse();
         std::ignore = tree;
-        auto* node = instance.arena().compose<syntax::Node>();
-        return node;
+        return instance.arena().compose<syntax::Node>();
     });
 
     const memory::Slice<syntax::Node*> outputs = parser.parse();
 
-    typography::Shaper shaper(arena);
-    const typography::Font* collection[] = { font };
+    render::typography::Shaper shaper(arena);
+    const render::typography::Font* fallback_chain[] = { font };
     constexpr std::string_view sample = "f(x) dx";
+    
     const auto glyphs = shaper.shape(
-        memory::Slice<const typography::Font*>{collection, 1},
+        memory::Slice{fallback_chain, 1},
         sample,
         {}
     );

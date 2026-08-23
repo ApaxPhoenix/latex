@@ -1,9 +1,9 @@
 #include "typography/protrusion.hpp"
 
-namespace typography {
+namespace render::typography {
 
-    Protrusion::Protrusion(memory::Arena& arena, const std::size_t slots, const std::uint32_t seed) noexcept
-        : arena(arena), slots(slots), seed(seed) {
+    Protrusion::Protrusion(memory::Arena& arena, const std::size_t slots) noexcept
+        : arena(arena), slots(slots) {
         if (slots > 0) {
             auto [data, count] = arena.allocate<Node*>(slots);
             table = data;
@@ -14,7 +14,7 @@ namespace typography {
     void Protrusion::compose(const std::uint32_t code, const std::int32_t left, const std::int32_t right) const noexcept {
         if (!table || slots == 0) return;
 
-        const std::size_t slot = (code * seed) % slots;
+        const std::size_t slot = code % slots;
         for (Node* current = table[slot]; current; current = current->next) {
             if (current->code == code) {
                 current->margin = {left, right};
@@ -32,7 +32,7 @@ namespace typography {
     Protrusion::Margin Protrusion::get(const std::uint32_t code) const noexcept {
         if (!table || slots == 0) return {};
 
-        const std::size_t slot = (code * seed) % slots;
+        const std::size_t slot = code % slots;
         for (const Node* current = table[slot]; current; current = current->next) {
             if (current->code == code) return current->margin;
         }

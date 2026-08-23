@@ -1,6 +1,6 @@
 #include "typography/hyphenator.hpp"
 
-namespace typography {
+namespace render::typography {
 
     Hyphenator::Hyphenator(memory::Arena& arena) noexcept : arena(arena) {
         root = arena.compose<Node>();

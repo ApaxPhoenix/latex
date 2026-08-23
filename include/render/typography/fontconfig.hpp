@@ -7,7 +7,7 @@
 #include <optional>
 #include <string_view>
 
-namespace typography {
+namespace render::typography {
 
     class FontConfig {
     public:
@@ -20,27 +20,26 @@ namespace typography {
         struct Entry {
             std::string_view family{};
             std::string_view path{};
-            int weight{0};
+            int weight{400};
             int slant{0};
         };
 
-        FontConfig(memory::Arena& arena, std::size_t slots = 256, std::size_t seed = 5381) noexcept;
+        FontConfig(memory::Arena& arena, std::size_t slots = 256) noexcept;
         ~FontConfig() noexcept;
 
         FontConfig(const FontConfig&) = delete;
         FontConfig& operator=(const FontConfig&) = delete;
 
-        bool compose(std::string_view path) const noexcept;
+        [[nodiscard]] bool compose(std::string_view path) const noexcept;
         void dispose() noexcept;
 
         [[nodiscard]] std::optional<std::string_view> find(memory::Arena& scratch, std::string_view query) const noexcept;
-        [[nodiscard]] memory::Slice<Entry> list(std::string_view path) const noexcept;
+        [[nodiscard]] memory::Slice<Entry> list(std::string_view path = {}) const noexcept;
 
     private:
         memory::Arena& arena;
         FcConfig* handle{nullptr};
         std::size_t slots{0};
-        std::size_t seed{0};
         Node** table{nullptr};
     };
 

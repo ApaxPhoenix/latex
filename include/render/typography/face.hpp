@@ -10,10 +10,18 @@
 #include <string_view>
 #include <vector>
 
-namespace typography {
+namespace render::typography {
 
     class Face {
     public:
+        struct Instance {
+            FT_Library library{nullptr};
+            Instance() noexcept;
+            ~Instance() noexcept;
+        };
+
+        inline static thread_local Instance instance{};
+
         Face() noexcept = default;
         ~Face() noexcept;
 
@@ -24,13 +32,11 @@ namespace typography {
 
         [[nodiscard]] bool compose(std::string_view path) noexcept;
         [[nodiscard]] bool compose(std::span<const std::uint8_t> bytes) noexcept;
-
         void dispose() noexcept;
 
         [[nodiscard]] FT_Face ft() const noexcept { return native; }
         [[nodiscard]] hb_face_t* hb() const noexcept { return handle; }
         [[nodiscard]] std::uint32_t units() const noexcept { return scale; }
-        [[nodiscard]] std::mutex& lock() const noexcept { return mutex; }
 
     private:
         FT_Face native{nullptr};

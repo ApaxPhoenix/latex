@@ -1,10 +1,10 @@
 #pragma once
 
 #include "memory/arena.hpp"
-#include <cstddef>
+
 #include <cstdint>
 
-namespace typography {
+namespace render::typography {
 
     class Protrusion {
     public:
@@ -19,7 +19,7 @@ namespace typography {
             Node* next{nullptr};
         };
 
-        Protrusion(memory::Arena& arena, std::size_t slots, std::uint32_t seed = 2654435761u) noexcept;
+        explicit Protrusion(memory::Arena& arena, std::size_t slots = 256) noexcept;
 
         void compose(std::uint32_t code, std::int32_t left, std::int32_t right) const noexcept;
         [[nodiscard]] Margin get(std::uint32_t code) const noexcept;
@@ -27,7 +27,6 @@ namespace typography {
     private:
         memory::Arena& arena;
         std::size_t slots{0};
-        std::uint32_t seed{0};
         Node** table{nullptr};
     };
 

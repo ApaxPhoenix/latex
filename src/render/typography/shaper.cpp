@@ -1,8 +1,8 @@
 #include "typography/shaper.hpp"
 
-namespace typography {
+namespace render::typography {
 
-    memory::Slice<render::layout::Node*> Shaper::shape(
+    memory::Slice<layout::Node*> Shaper::shape(
         const memory::Slice<const Font*> fonts,
         const std::string_view text,
         const memory::Slice<Feature> features
@@ -46,9 +46,9 @@ namespace typography {
             return {};
         }
 
-        memory::Slice<render::layout::Node*> result = arena.allocate<render::layout::Node*>(count);
+        memory::Slice<layout::Node*> result = arena.allocate<layout::Node*>(count);
         constexpr float ratio = 1.0f / 64.0f;
-        const Font::Metric metric = primary->metrics();
+        const Font::Metric primary_metric = primary->metrics();
 
         for (std::size_t index = 0; index < count; ++index) {
             const std::uint32_t cluster = info[index].cluster;
@@ -56,27 +56,46 @@ namespace typography {
             const float advance = static_cast<float>(position[index].x_advance) * ratio;
 
             if (symbol == ' ') {
-                auto* node = arena.compose<render::layout::Node>(render::layout::Node::Type::Glue);
+                auto* node = arena.compose<layout::Node>(layout::Node::Type::Glue);
                 node->glue({
                     .width = advance,
                     .stretch = advance * 0.5f,
                     .shrink = advance * 0.333333f,
-                    .expand = render::layout::Node::Order::Normal,
-                    .limit = render::layout::Node::Order::Normal
+                    .expand = layout::Node::Order::Normal,
+                    .limit = layout::Node::Order::Normal
                 });
                 result[index] = node;
                 continue;
             }
 
-            auto* node = arena.compose<render::layout::Node>(render::layout::Node::Type::Glyph);
+            std::uint32_t code = info[index].codepoint;
+            const Font* font = primary;
+            Font::Metric metric = primary_metric;
+
+            if (code == 0 && fonts.count > 1) {
+                for (std::size_t step = 0; step < fonts.count; ++step) {
+                    const Font* fallback = fonts[step];
+                    if (!fallback || fallback == primary || !fallback->hb()) continue;
+
+                    std::uint32_t resolved = 0;
+                    if (hb_font_get_nominal_glyph(fallback->hb(), symbol, &resolved) && resolved != 0) {
+                        code = resolved;
+                        font = fallback;
+                        metric = fallback->metrics();
+                        break;
+                    }
+                }
+            }
+
+            auto* node = arena.compose<layout::Node>(layout::Node::Type::Glyph);
             node->glyph({
                 .width = advance,
                 .height = metric.ascent,
                 .depth = metric.descent,
                 .x = static_cast<float>(position[index].x_offset) * ratio,
                 .y = static_cast<float>(position[index].y_offset) * ratio,
-                .code = info[index].codepoint,
-                .font = primary
+                .code = code,
+                .font = font
             });
             result[index] = node;
         }

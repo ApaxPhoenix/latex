@@ -5,7 +5,7 @@
 #include <harfbuzz/hb.h>
 #include <cstdint>
 
-namespace typography {
+namespace render::typography {
 
     class Font {
     public:
@@ -25,7 +25,7 @@ namespace typography {
             float height{0.0f};
         };
 
-        constexpr Font() noexcept = default;
+        Font() noexcept = default;
         ~Font() noexcept;
 
         Font(const Font&) = delete;
@@ -39,9 +39,9 @@ namespace typography {
         [[nodiscard]] Metric metrics(float scale = 64.0f) const noexcept;
         [[nodiscard]] Box bounds(std::uint32_t glyph, float scale = 64.0f) const noexcept;
 
-        [[nodiscard]] constexpr hb_font_t* hb() const noexcept { return handle; }
-        [[nodiscard]] constexpr const Face* face() const noexcept { return parent; }
-        [[nodiscard]] constexpr float size() const noexcept { return points; }
+        [[nodiscard]] hb_font_t* hb() const noexcept { return handle; }
+        [[nodiscard]] const Face* face() const noexcept { return parent; }
+        [[nodiscard]] float size() const noexcept { return points; }
 
     private:
         const Face* parent{nullptr};

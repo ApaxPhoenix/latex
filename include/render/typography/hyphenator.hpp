@@ -2,9 +2,10 @@
 
 #include "memory/arena.hpp"
 #include "memory/slice.hpp"
+
 #include <cstdint>
 
-namespace typography {
+namespace render::typography {
 
     class Hyphenator {
     public:
@@ -22,7 +23,7 @@ namespace typography {
             memory::Arena& scratch,
             memory::Slice<std::uint32_t> word,
             std::uint32_t pad = '.',
-            std::size_t boundary = 3
+            std::size_t boundary = 2
         ) const;
 
     private:
