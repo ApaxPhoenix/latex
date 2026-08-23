@@ -1,5 +1,7 @@
 #include "layout/cache.hpp"
 
+#include <functional>
+
 namespace render::layout {
 
     bool Cache::Key::operator==(const Key& target) const noexcept {
@@ -17,33 +19,35 @@ namespace render::layout {
     memory::Slice<Node*> Cache::find(const Key& key) const noexcept {
         if (limit == 0 || count == 0) return {};
 
-        std::size_t slot = hash(key) % limit;
+        const std::size_t slot = hash(key) % limit;
         for (std::size_t step = 0; step < limit; ++step) {
-            const auto& item = slots[(slot + step) % limit];
-            if (!item.occupied) return {};
-            if (item.key == key) return item.nodes;
+            const auto&[key_, nodes, occupied] = slots[(slot + step) % limit];
+            if (!occupied) return {};
+            if (key_ == key) return nodes;
         }
         return {};
     }
 
-    void Cache::insert(const Key& key, memory::Slice<Node*> nodes) noexcept {
+    void Cache::insert(const Key& key, const memory::Slice<Node*> nodes) noexcept {
         if (limit == 0) return;
 
         const std::size_t slot = hash(key) % limit;
         for (std::size_t step = 0; step < limit; ++step) {
-            auto& item = slots[(slot + step) % limit];
-            if (!item.occupied) {
-                item.key = key;
-                item.nodes = nodes;
-                item.occupied = true;
+            auto&[key_, nodes_, occupied] = slots[(slot + step) % limit];
+            if (!occupied) {
+                key_ = key;
+                nodes_ = nodes;
+                occupied = true;
                 ++count;
                 return;
             }
-            if (item.key == key) {
-                item.nodes = nodes;
+            if (key_ == key) {
+                nodes_ = nodes;
                 return;
             }
         }
+
+        slots[slot] = Entry{ .key = key, .nodes = nodes, .occupied = true };
     }
 
     void Cache::dispose() noexcept {

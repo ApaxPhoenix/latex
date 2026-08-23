@@ -1,93 +1,140 @@
 #include "render/painter.hpp"
+#include "typography/font.hpp"
+#include "typography/face.hpp"
 
-#include <include/core/SkFontMgr.h>
+#include <include/core/SkFont.h>
+#include <include/core/SkRect.h>
+#include <include/core/SkTextBlob.h>
 #include <include/core/SkTypeface.h>
-
-#if defined(_WIN32)
-#include <include/ports/SkTypeface_win.h>
-#elif defined(__APPLE__)
-#include <include/ports/SkFontMgr_mac_ct.h>
-#elif defined(__ANDROID__)
-#include <include/ports/SkFontMgr_android.h>
-#elif defined(__linux__)
-#include <include/ports/SkFontMgr_fontconfig.h>
-#endif
+#include <include/core/SkTypes.h>
 
 namespace render {
 
     Painter::Painter(SkCanvas* target) noexcept : canvas(target) {
         paint.setAntiAlias(true);
         paint.setColor(SK_ColorBLACK);
-
-        sk_sp<SkFontMgr> manager;
-
-        #if defined(_WIN32)
-            manager = SkFontMgr_New_DirectWrite();
-        #elif defined(__APPLE__)
-            manager = SkFontMgr_New_CoreText();
-        #elif defined(__ANDROID__)
-            manager = SkFontMgr_New_Android(nullptr);
-        #elif defined(__linux__)
-            manager = SkFontMgr_New_FontConfig(nullptr);
-        #endif
-
-        if (manager) {
-            font.setTypeface(manager->legacyMakeTypeface("Arial", SkFontStyle()));
-        }
-
-        font.setSize(12.0f);
     }
 
-    void Painter::compose(const layout::Node* root, float x, float y) {
-        for (const layout::Node* node = root; node != nullptr; node = node->next()) {
-            switch (node->type()) {
-                case layout::Node::Type::Glyph:
-                    character(node, x, y);
-                    x += node->glyph().width;
-                    break;
+    void Painter::draw(const layout::Node* root, const float x, const float y) const {
+        if (!root) return;
 
-                case layout::Node::Type::Rule:
-                    rule(node, x, y);
-                    x += node->rule().width;
-                    break;
+        if (root->type() == layout::Node::Type::Box) {
+            box(root, x, y);
+        } else {
+            node(root, x, y);
+        }
+    }
 
-                case layout::Node::Type::Box:
-                    box(node, x, y);
-                    x += node->box().width;
-                    break;
+    void Painter::box(const layout::Node* node, const float x, const float y) const {
+        const auto& info = node->box();
+        const bool vertical = (info.alignment == layout::Node::Alignment::Vertical);
 
-                case layout::Node::Type::Glue:
-                    x += node->glue().width;
-                    break;
+        float left = x;
+        float top = y;
 
-                case layout::Node::Type::Kern:
-                    x += node->kern().width;
-                    break;
+        for (const auto* child : info.list) {
+            if (!child) continue;
 
-                default:
-                    break;
+            if (child->type() == layout::Node::Type::Box) {
+                float spot = left;
+                float mark = top;
+
+                if (vertical) {
+                    spot += child->box().shift;
+                } else {
+                    mark += child->box().shift;
+                }
+
+                box(child, spot, mark);
+
+                if (vertical) {
+                    top += child->box().height + child->box().depth;
+                } else {
+                    left += child->box().width;
+                }
+            } else {
+                this->node(child, left, top);
+
+                if (vertical) {
+                    switch (child->type()) {
+                        case layout::Node::Type::Glue:
+                            top += child->glue().width;
+                            break;
+                        case layout::Node::Type::Kern:
+                            top += child->kern().width;
+                            break;
+                        case layout::Node::Type::Rule:
+                            top += child->rule().height + child->rule().depth;
+                            break;
+                        case layout::Node::Type::Glyph:
+                            top += child->glyph().height + child->glyph().depth;
+                            break;
+                        default:
+                            break;
+                    }
+                } else {
+                    switch (child->type()) {
+                        case layout::Node::Type::Glyph:
+                            left += child->glyph().width;
+                            break;
+                        case layout::Node::Type::Glue:
+                            left += child->glue().width;
+                            break;
+                        case layout::Node::Type::Kern:
+                            left += child->kern().width;
+                            break;
+                        case layout::Node::Type::Rule:
+                            left += child->rule().width;
+                            break;
+                        default:
+                            break;
+                    }
+                }
             }
         }
     }
 
-    void Painter::character(const layout::Node* node, const float x, const float y) const {
-        const auto& glyph = node->glyph();
-        const char text[2] = {static_cast<char>(glyph.code), '\0'};
+    void Painter::node(const layout::Node* node, const float x, const float y) const {
+        switch (node->type()) {
+            case layout::Node::Type::Glyph:
+                glyph(node, x, y);
+                break;
+            case layout::Node::Type::Rule:
+                rule(node, x, y);
+                break;
+            default:
+                break;
+        }
+    }
 
-        canvas->drawString(text, x, y, font, paint);
+    void Painter::glyph(const layout::Node* node, const float x, const float y) const {
+        const auto& info = node->glyph();
+
+        SkFont font;
+        if (info.font && info.font->face()) {
+            const auto* face = info.font->face();
+            if (face->ft()) {
+                font.setTypeface(SkTypeface::MakeFromFTFace(face->ft()));
+            }
+        }
+
+        const float size = info.font ? info.font->size() : (info.height + info.depth);
+        if (size <= 0.0f) return;
+        font.setSize(size);
+
+        const SkGlyphID id = static_cast<SkGlyphID>(info.code);
+        const SkPoint point = SkPoint::Make(x + info.x, y + info.y);
+
+        if (const auto blob = SkTextBlob::MakeFromPosText(&id, sizeof(SkGlyphID), &point, font); blob) {
+            canvas->drawTextBlob(blob, 0, 0, paint);
+        }
     }
 
     void Painter::rule(const layout::Node* node, const float x, const float y) const {
         const auto& [width, height, depth] = node->rule();
-        const SkRect rectangle = SkRect::MakeXYWH(x, y - height, width, height + depth);
+        const SkRect rect = SkRect::MakeXYWH(x, y - height, width, height + depth);
 
-        canvas->drawRect(rectangle, paint);
-    }
-
-    void Painter::box(const layout::Node* node, const float x, const float y) {
-        for (const auto* child : node->box().list) {
-            compose(child, x, y);
-        }
+        canvas->drawRect(rect, paint);
     }
 
 }

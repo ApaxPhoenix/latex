@@ -51,8 +51,7 @@ namespace render::layout {
         const std::size_t total = list.size();
         if (total == 0) return {};
 
-        const std::size_t capacity = (total / 10) + 1;
-        auto pages = arena.allocate<Page>(capacity);
+        auto pages = arena.allocate<Page>(total);
 
         std::size_t count = 0;
         std::size_t start = 0;
@@ -70,7 +69,7 @@ namespace render::layout {
             }
 
             if (height + span > context.height && step > start) {
-                std::size_t length = step - start;
+                const std::size_t length = step - start;
                 auto slice = arena.allocate<Node*>(length);
                 for (std::size_t cursor = 0; cursor < length; ++cursor) {
                     slice[cursor] = list[start + cursor];

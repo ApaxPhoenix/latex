@@ -79,6 +79,20 @@ namespace syntax {
                     location,
                     message
                 );
+
+                while (true) {
+                    const Token token = mouth_.expand();
+                    if (token.values.empty()) {
+                        Logger::log(Logger::Type::Parser, Logger::Level::Debug, "Recovery reached stream end");
+                        break;
+                    }
+                    if (token.symbol == paragraph) {
+                        Logger::fmt(Logger::Type::Parser, Logger::Level::Debug,
+                                    "Recovered at paragraph synchronization boundary at line {} column {}", token.location.line, token.location.column);
+                        nodes.push_back(arena_.compose<Node>(Node::Type::Paragraph, token.values, token.location, memory::Slice<Node*>{}));
+                        break;
+                    }
+                }
                 continue;
             }
 

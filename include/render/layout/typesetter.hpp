@@ -1,8 +1,12 @@
 #pragma once
 
+#include "layout/breaker.hpp"
+#include "layout/cache.hpp"
 #include "layout/document.hpp"
+#include "layout/line.hpp"
 #include "layout/node.hpp"
 #include "layout/pager.hpp"
+#include "layout/paragraph.hpp"
 #include "memory/arena.hpp"
 #include "memory/slice.hpp"
 
@@ -27,7 +31,7 @@ namespace render::layout {
             const Settings& settings
         ) noexcept;
 
-        [[nodiscard]] Node* stack(memory::Slice<Node*> nodes) const noexcept;
+        [[nodiscard]] Node* stack(memory::Slice<Node*> input) const noexcept;
         [[nodiscard]] memory::Slice<Pager::Page> compose(Document& document) const;
 
     private:

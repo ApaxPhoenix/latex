@@ -11,6 +11,10 @@ namespace syntax {
         struct Cache {
             const Lexicon* lexicon = nullptr;
             std::array<std::pair<Symbol, std::string_view>, 256> entries{};
+
+            Cache() {
+                entries.fill({kInvalidSymbol, {}});
+            }
         };
 
         thread_local Cache cache;
@@ -20,22 +24,22 @@ namespace syntax {
                 const auto index = static_cast<unsigned char>(slice[0]);
                 if (cache.lexicon != &lexicon) {
                     cache.lexicon = &lexicon;
-                    cache.entries.fill({});
+                    cache.entries.fill({kInvalidSymbol, {}});
                 }
                 if (cache.entries[index].first == kInvalidSymbol) {
-                    const Symbol symbol = lexicon.intern(slice);
-                    cache.entries[index] = {symbol, lexicon.resolve(symbol)};
+                    const Symbol bound = lexicon.intern(slice);
+                    cache.entries[index] = {bound, lexicon.resolve(bound)};
                 }
                 return cache.entries[index];
             }
-            const Symbol symbol = lexicon.intern(slice);
-            return {symbol, lexicon.resolve(symbol)};
+            const Symbol bound = lexicon.intern(slice);
+            return {bound, lexicon.resolve(bound)};
         }
     }
 
-    Lexer::Lexer(const std::string_view sources, CatCodes& table, Lexicon& lexicon)
-        : sources(sources), table(table), lexicon(lexicon) {
-        Logger::fmt(Logger::Type::Lexer, Logger::Level::Informative, "Lexer bound to {} byte buffer", sources.size());
+    Lexer::Lexer(const std::string_view source, CatCodes& table, Lexicon& lexicon)
+        : sources(source), table(table), lexicon(lexicon) {
+        Logger::fmt(Logger::Type::Lexer, Logger::Level::Informative, "Lexer bound to {} byte buffer", source.size());
     }
 
     bool Lexer::empty() const noexcept {
@@ -55,8 +59,8 @@ namespace syntax {
                 location.line++;
                 location.column = 1;
                 type = Type::Newline;
-                const auto [symbol_, value] = entry(lexicon, "\n");
-                return Token{symbol_, CatCodes::Category::Space, position, value};
+                const auto [bound, value] = entry(lexicon, "\n");
+                return Token{bound, CatCodes::Category::Space, position, value};
             }
 
             if (category == CatCodes::Category::Space) {
@@ -64,8 +68,8 @@ namespace syntax {
                 location.column++;
                 if (type == Type::Skip || type == Type::Newline) continue;
                 type = Type::Skip;
-                const auto [symbol_, value] = entry(lexicon, " ");
-                return Token{symbol_, CatCodes::Category::Space, position, value};
+                const auto [bound, value] = entry(lexicon, " ");
+                return Token{bound, CatCodes::Category::Space, position, value};
             }
 
             if (category == CatCodes::Category::Ignore) {
@@ -88,8 +92,7 @@ namespace syntax {
                 location.column++;
 
                 if (offset < size) {
-                    const char next = sources[offset];
-                    if (table.get(next) == CatCodes::Category::Letter) {
+                    if (const char next = sources[offset]; table.get(next) == CatCodes::Category::Letter) {
                         while (offset < size && table.get(sources[offset]) == CatCodes::Category::Letter) {
                             offset++;
                             location.column++;
@@ -106,10 +109,10 @@ namespace syntax {
                 }
 
                 const std::string_view slice = sources.substr(origin, offset - origin);
-                const Symbol symbol_ = lexicon.intern(slice);
-                const std::string_view value = lexicon.resolve(symbol_);
+                const Symbol bound = lexicon.intern(slice);
+                const std::string_view value = lexicon.resolve(bound);
                 Logger::fmt(Logger::Type::Lexer, Logger::Level::Debug, "Lexed <Escape> [{}] at {}:{}", slice, position.line, position.column);
-                return Token{symbol_, CatCodes::Category::Escape, position, value};
+                return Token{bound, CatCodes::Category::Escape, position, value};
             }
 
             const std::size_t span = ((static_cast<unsigned char>(symbol) & 0x80) == 0) ? 1 : std::min(length(symbol), size - offset);
@@ -118,9 +121,9 @@ namespace syntax {
             type = Type::Middle;
 
             const std::string_view slice = sources.substr(origin, span);
-            const auto [symbol_, value] = entry(lexicon, slice);
+            const auto [bound, value] = entry(lexicon, slice);
             Logger::fmt(Logger::Type::Lexer, Logger::Level::Traceback, "Lexed <{}> [{}] at {}:{}", std::to_underlying(category), slice, position.line, position.column);
-            return Token{symbol_, category, position, value};
+            return Token{bound, category, position, value};
         }
 
         return {};

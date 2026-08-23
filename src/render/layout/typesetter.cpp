@@ -1,7 +1,4 @@
 #include "layout/typesetter.hpp"
-#include "layout/line.hpp"
-
-#include <algorithm>
 
 namespace render::layout {
 
@@ -18,8 +15,8 @@ namespace render::layout {
     ) noexcept
         : arena(arena), scratch(scratch), settings(settings) {}
 
-    Node* Typesetter::stack(memory::Slice<Node*> nodes) const noexcept {
-        const std::size_t count = nodes.size();
+    Node* Typesetter::stack(memory::Slice<Node*> input) const noexcept {
+        const std::size_t count = input.size();
         if (count == 0) return nullptr;
 
         const std::size_t total = count * 2;
@@ -29,7 +26,7 @@ namespace render::layout {
         float depth = 0.0f;
 
         for (std::size_t step = 0; step < count; ++step) {
-            Node* child = nodes[step];
+            Node* child = input[step];
             if (!child) continue;
 
             if (child->type() == Node::Type::Box) {

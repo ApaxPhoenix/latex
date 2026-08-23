@@ -13,9 +13,9 @@ namespace render::layout {
         memory::Arena& arena,
         memory::Arena& scratch,
         typography::Shaper& shaper,
-        const Configuration& configuration
+        const Configuration& config
     ) noexcept
-        : arena(arena), scratch(scratch), shaper(shaper), cache(arena, 2048), configuration_(configuration) {}
+        : arena(arena), scratch(scratch), shaper(shaper), cache(arena, 2048), config(config) {}
 
     Paragraph* Document::append(
         std::string_view text,
@@ -40,8 +40,8 @@ namespace render::layout {
     }
 
     void Document::layout() noexcept {
-        const float width = configuration_.width - configuration_.left - configuration_.right;
-        float top = configuration_.top;
+        const float width = config.width - config.left - config.right;
+        float top = config.top;
         float shift = 0.0f;
 
         const Element* current = head;
@@ -58,7 +58,7 @@ namespace render::layout {
                     cache,
                     scratch,
                     width,
-                    configuration_.leading
+                    config.leading
                 );
                 shift += delta;
                 item->offset(top);
@@ -68,7 +68,7 @@ namespace render::layout {
                 }
             }
 
-            top += item->height() + configuration_.leading;
+            top = item->offset() + item->height() + config.leading;
             current = current->next;
         }
     }
@@ -89,7 +89,7 @@ namespace render::layout {
     }
 
     const Document::Configuration& Document::configuration() const noexcept {
-        return configuration_;
+        return config;
     }
 
 }

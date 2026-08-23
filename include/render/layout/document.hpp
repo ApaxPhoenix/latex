@@ -22,6 +22,11 @@ namespace render::layout {
             float leading{14.0f};
         };
 
+        struct Element {
+            Paragraph* item{nullptr};
+            Element* next{nullptr};
+        };
+
         Document(
             memory::Arena& arena,
             memory::Arena& scratch,
@@ -32,7 +37,7 @@ namespace render::layout {
             memory::Arena& arena,
             memory::Arena& scratch,
             typography::Shaper& shaper,
-            const Configuration& configuration
+            const Configuration& config
         ) noexcept;
 
         Paragraph* append(
@@ -47,16 +52,11 @@ namespace render::layout {
         [[nodiscard]] const Configuration& configuration() const noexcept;
 
     private:
-        struct Element {
-            Paragraph* item{nullptr};
-            Element* next{nullptr};
-        };
-
         memory::Arena& arena;
         memory::Arena& scratch;
         typography::Shaper& shaper;
         Cache cache;
-        Configuration configuration_{};
+        Configuration config{};
 
         Element* head{nullptr};
         Element* tail{nullptr};

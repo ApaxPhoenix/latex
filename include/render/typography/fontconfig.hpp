@@ -3,9 +3,12 @@
 #include "memory/arena.hpp"
 #include "memory/slice.hpp"
 
-#include <fontconfig/fontconfig.h>
 #include <optional>
 #include <string_view>
+
+#ifndef __EMSCRIPTEN__
+#include <fontconfig/fontconfig.h>
+#endif
 
 namespace render::typography {
 
@@ -30,6 +33,9 @@ namespace render::typography {
         FontConfig(const FontConfig&) = delete;
         FontConfig& operator=(const FontConfig&) = delete;
 
+        FontConfig(FontConfig&&) noexcept = default;
+        FontConfig& operator=(FontConfig&&) noexcept = delete;
+
         [[nodiscard]] bool compose(std::string_view path) const noexcept;
         void dispose() noexcept;
 
@@ -38,7 +44,11 @@ namespace render::typography {
 
     private:
         memory::Arena& arena;
-        FcConfig* handle{nullptr};
+        #ifndef __EMSCRIPTEN__
+                FcConfig* handle{nullptr};
+        #else
+                void* handle{nullptr};
+        #endif
         std::size_t slots{0};
         Node** table{nullptr};
     };

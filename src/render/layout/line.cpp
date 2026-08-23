@@ -19,7 +19,7 @@ namespace render::layout {
         float height = 0.0f;
         float depth = 0.0f;
 
-        for (const auto* node : nodes) {
+        for (const auto node : nodes) {
             if (!node) continue;
 
             switch (node->type()) {
@@ -86,15 +86,14 @@ namespace render::layout {
                         break;
                     }
                 }
-                float flex = shrink[rank];
-                if (flex > 0.0f) {
+                if (const float flex = shrink[rank]; flex > 0.0f) {
                     ratio = gap / flex;
                     sign = Node::Sign::Shrinking;
                 }
             }
         }
 
-        Node::Box data{
+        const Node::Box data{
             .width = (target > 0.0f) ? target : natural,
             .height = height,
             .depth = depth,
@@ -122,7 +121,7 @@ namespace render::layout {
         const std::size_t count = nodes.size();
         const std::size_t total = count + (count > 1 ? count - 1 : 0);
 
-        auto slice = arena.allocate<Node*>(total);
+        memory::Slice<Node*> pointer = arena.allocate<Node*>(total);
         std::size_t mark = 0;
 
         for (std::size_t step = 0; step < count; ++step) {
@@ -134,12 +133,12 @@ namespace render::layout {
                 height += child->box().height + child->box().depth;
             }
 
-            slice[mark++] = child;
+            pointer[mark++] = child;
 
             if (skip > 0.0f && step + 1 < count) {
                 auto* glue = arena.compose<Node>(Node::Type::Glue);
                 glue->glue({ .width = skip, .stretch = 0.0f, .shrink = 0.0f });
-                slice[mark++] = glue;
+                pointer[mark++] = glue;
                 height += skip;
             }
         }
@@ -152,7 +151,7 @@ namespace render::layout {
             .ratio = 0.0f,
             .sign = Node::Sign::None,
             .alignment = Node::Alignment::Vertical,
-            .list = slice
+            .list = memory::Slice{pointer.data, mark}
         };
 
         box->box(data);

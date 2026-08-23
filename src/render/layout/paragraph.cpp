@@ -67,7 +67,7 @@ namespace render::layout {
             }
         }
 
-        Breaker::Configuration configuration{
+        const Breaker::Configuration configuration{
             .target = static_cast<double>(width),
             .leading = static_cast<double>(leading),
             .tolerance = 2000.0,

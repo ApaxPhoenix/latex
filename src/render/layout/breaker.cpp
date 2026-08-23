@@ -9,7 +9,37 @@ namespace render::layout {
         : arena(arena), scratch(scratch), configuration(configuration) {}
 
     memory::Slice<Node*> Breaker::compose(memory::Slice<Node*> input) const {
-        if (input.empty()) return {};
+        const std::size_t count = input.size();
+        if (count == 0) return {};
+
+        auto pref_w = scratch.allocate<double>(count + 1);
+        auto pref_str = scratch.allocate<double>(count + 1);
+        auto pref_shr = scratch.allocate<double>(count + 1);
+
+        pref_w[0] = 0.0;
+        pref_str[0] = 0.0;
+        pref_shr[0] = 0.0;
+
+        for (std::size_t step = 0; step < count; ++step) {
+            const Node* item = input[step];
+            double w = 0.0, str = 0.0, shr = 0.0;
+
+            if (item->type() == Node::Type::Glyph) {
+                w = static_cast<double>(item->glyph().width);
+            } else if (item->type() == Node::Type::Box) {
+                w = static_cast<double>(item->box().width);
+            } else if (item->type() == Node::Type::Glue) {
+                w = static_cast<double>(item->glue().width);
+                str = static_cast<double>(item->glue().stretch);
+                shr = static_cast<double>(item->glue().shrink);
+            } else if (item->type() == Node::Type::Kern) {
+                w = static_cast<double>(item->kern().width);
+            }
+
+            pref_w[step + 1] = pref_w[step] + w;
+            pref_str[step + 1] = pref_str[step] + str;
+            pref_shr[step + 1] = pref_shr[step] + shr;
+        }
 
         struct Active {
             std::size_t index{0};
@@ -18,19 +48,11 @@ namespace render::layout {
             const Active* link{nullptr};
         };
 
-        const std::size_t count = input.size();
         const std::size_t capacity = count * 4 + 16;
-
         auto buffer = scratch.allocate<Active>(capacity);
         std::size_t active = 0;
 
-        buffer[active++] = Active{
-            .index = 0,
-            .line = 0,
-            .demerits = 0.0,
-            .link = nullptr
-        };
-
+        buffer[active++] = Active{ .index = 0, .line = 0, .demerits = 0.0, .link = nullptr };
         const Active* tail = nullptr;
 
         for (std::size_t cursor = 0; cursor < count; ++cursor) {
@@ -62,23 +84,9 @@ namespace render::layout {
             for (std::size_t slot = 0; slot < active; ++slot) {
                 const auto& point = buffer[slot];
 
-                double width = 0.0;
-                double stretch = 0.0;
-                double shrink = 0.0;
-
-                for (std::size_t step = point.index; step <= cursor; ++step) {
-                    if (const Node* item = input[step]; item->type() == Node::Type::Glyph) {
-                        width += static_cast<double>(item->glyph().width);
-                    } else if (item->type() == Node::Type::Box) {
-                        width += static_cast<double>(item->box().width);
-                    } else if (item->type() == Node::Type::Glue) {
-                        width += static_cast<double>(item->glue().width);
-                        stretch += static_cast<double>(item->glue().stretch);
-                        shrink += static_cast<double>(item->glue().shrink);
-                    } else if (item->type() == Node::Type::Kern) {
-                        width += static_cast<double>(item->kern().width);
-                    }
-                }
+                const double width = pref_w[cursor + 1] - pref_w[point.index];
+                const double stretch = pref_str[cursor + 1] - pref_str[point.index];
+                const double shrink = pref_shr[cursor + 1] - pref_shr[point.index];
 
                 const double gap = configuration.target - width;
                 double ratio = 0.0;
@@ -95,7 +103,6 @@ namespace render::layout {
                 if (badness > configuration.tolerance) continue;
 
                 const double bias = configuration.penalty + cost;
-
                 if (const double loss = std::pow(10.0 + badness, 2.0) + std::pow(bias, 2.0) + point.demerits; loss < lowest) {
                     lowest = loss;
                     pick = &point;
@@ -114,50 +121,7 @@ namespace render::layout {
             }
         }
 
-        if (!tail) {
-            std::size_t start = 0;
-            float width = 0.0f;
-            const std::size_t bound = count / 5 + 1;
-            auto list = scratch.allocate<Node*>(bound);
-            std::size_t rows = 0;
-
-            for (std::size_t cursor = 0; cursor < count; ++cursor) {
-                const Node* node = input[cursor];
-                float span = 0.0f;
-
-                if (node->type() == Node::Type::Glyph) span = node->glyph().width;
-                else if (node->type() == Node::Type::Glue) span = node->glue().width;
-                else if (node->type() == Node::Type::Kern) span = node->kern().width;
-                else if (node->type() == Node::Type::Box) span = node->box().width;
-
-                if (width + span > configuration.target && cursor > start) {
-                    const std::size_t length = cursor - start;
-                    auto slice = scratch.allocate<Node*>(length);
-                    for (std::size_t step = 0; step < length; ++step) {
-                        slice[step] = input[start + step];
-                    }
-                    list[rows++] = Line::horizontal(arena, slice, static_cast<float>(configuration.target));
-                    start = cursor;
-                    width = 0.0f;
-                }
-                width += span;
-            }
-
-            if (start < count) {
-                const std::size_t length = count - start;
-                auto slice = scratch.allocate<Node*>(length);
-                for (std::size_t step = 0; step < length; ++step) {
-                    slice[step] = input[start + step];
-                }
-                list[rows++] = Line::horizontal(arena, slice, static_cast<float>(configuration.target));
-            }
-
-            auto result = arena.allocate<Node*>(rows);
-            for (std::size_t cursor = 0; cursor < rows; ++cursor) {
-                result[cursor] = list[cursor];
-            }
-            return result;
-        }
+        if (!tail) return {};
 
         const std::size_t lines = tail->line;
         auto result = arena.allocate<Node*>(lines);

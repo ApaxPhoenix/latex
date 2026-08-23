@@ -3,6 +3,8 @@
 #include "font.hpp"
 #include "memory/slice.hpp"
 
+#include <cstdint>
+
 namespace render::layout {
 
     class Node {
@@ -103,14 +105,13 @@ namespace render::layout {
             void* ptr{nullptr};
         };
 
-        explicit Node(const Type type = Type::Box) noexcept
-            : kind(type) {}
+        explicit Node(const Type type = Type::Box) noexcept : type_(type) {}
 
-        [[nodiscard]] Type type() const noexcept { return kind; }
-        void type(const Type value) noexcept { kind = value; }
+        [[nodiscard]] Type type() const noexcept { return type_; }
+        void type(const Type value) noexcept { type_ = value; }
 
-        [[nodiscard]] Node* next() const noexcept { return link; }
-        void next(Node* node) noexcept { link = node; }
+        [[nodiscard]] Node* next() const noexcept { return next_; }
+        void next(Node* value) noexcept { next_ = value; }
 
         [[nodiscard]] const Box& box() const noexcept { return data.box; }
         [[nodiscard]] const Glue& glue() const noexcept { return data.glue; }
@@ -122,19 +123,19 @@ namespace render::layout {
         [[nodiscard]] const Insertion& insertion() const noexcept { return data.insertion; }
         [[nodiscard]] const Directive& directive() const noexcept { return data.directive; }
 
-        void box(const Box& value) noexcept { kind = Type::Box; data.box = value; }
-        void glue(const Glue& value) noexcept { kind = Type::Glue; data.glue = value; }
-        void kern(const Kern& value) noexcept { kind = Type::Kern; data.kern = value; }
-        void penalty(const Penalty& value) noexcept { kind = Type::Penalty; data.penalty = value; }
-        void rule(const Rule& value) noexcept { kind = Type::Rule; data.rule = value; }
-        void glyph(const Glyph& value) noexcept { kind = Type::Glyph; data.glyph = value; }
-        void pause(const Pause& value) noexcept { kind = Type::Pause; data.pause = value; }
-        void insertion(const Insertion& value) noexcept { kind = Type::Insertion; data.insertion = value; }
-        void directive(const Directive& value) noexcept { kind = Type::Directive; data.directive = value; }
+        void box(const Box& value) noexcept { type_ = Type::Box; data.box = value; }
+        void glue(const Glue& value) noexcept { type_ = Type::Glue; data.glue = value; }
+        void kern(const Kern& value) noexcept { type_ = Type::Kern; data.kern = value; }
+        void penalty(const Penalty& value) noexcept { type_ = Type::Penalty; data.penalty = value; }
+        void rule(const Rule& value) noexcept { type_ = Type::Rule; data.rule = value; }
+        void glyph(const Glyph& value) noexcept { type_ = Type::Glyph; data.glyph = value; }
+        void pause(const Pause& value) noexcept { type_ = Type::Pause; data.pause = value; }
+        void insertion(const Insertion& value) noexcept { type_ = Type::Insertion; data.insertion = value; }
+        void directive(const Directive& value) noexcept { type_ = Type::Directive; data.directive = value; }
 
     private:
-        Type kind{Type::Box};
-        Node* link{nullptr};
+        Type type_{Type::Box};
+        Node* next_{nullptr};
 
         union Data {
             Box box;
