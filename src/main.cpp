@@ -3,6 +3,8 @@
 #include "layout/line.hpp"
 #include "layout/pager.hpp"
 #include "memory/arena.hpp"
+#include "render/pdf.hpp"
+#include "render/wasm.hpp"
 #include "syntax/cursor.hpp"
 #include "syntax/expression/parser.hpp"
 #include "syntax/expression/unicodes.hpp"
@@ -19,14 +21,16 @@
 
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <vector>
 
-int main(int count, char* args[]) {
-    Logger::init(count, args);
+int main(int count, char* arguments[]) {
+    Logger::init(count, arguments);
     Logger::types(Logger::Type::None);
     Logger::level(Logger::Level::Error);
 
@@ -37,32 +41,39 @@ int main(int count, char* args[]) {
 
     const auto time = std::chrono::high_resolution_clock::now();
 
-    const std::filesystem::path binary = std::filesystem::absolute(args[0]);
+    const std::filesystem::path binary = std::filesystem::absolute(arguments[0]);
     const std::filesystem::path root = binary.parent_path().parent_path();
     const std::filesystem::path assets = root / "assets";
-    const std::filesystem::path paths = assets / "fonts";
-    const std::filesystem::path config = paths / "aliases.conf";
+    const std::filesystem::path directory = assets / "fonts";
+    const std::filesystem::path configuration = directory / "aliases.conf";
+    const std::filesystem::path source = root / "build" / "main.tex";
+    const std::filesystem::path output = root / "build" / "main.pdf";
 
-    if (!std::filesystem::exists(config)) {
-        std::cerr << "Alias configuration file missing at: " << config.string() << '\n';
+    if (!std::filesystem::exists(configuration)) {
+        std::cerr << "Alias configuration file missing at: " << configuration.string() << '\n';
+        return 1;
+    }
+
+    if (!std::filesystem::exists(source)) {
+        std::cerr << "TeX file missing at: " << source.string() << '\n';
         return 1;
     }
 
     #if defined(_WIN32)
-        _putenv_s("FONTCONFIG_FILE", config.string().c_str());
+        _putenv_s("FONTCONFIG_FILE", configuration.string().c_str());
     #else
-        setenv("FONTCONFIG_FILE", config.string().c_str(), 1);
+        setenv("FONTCONFIG_FILE", configuration.string().c_str(), 1);
     #endif
 
     render::typography::FontConfig options(arena);
-    if (!options.compose(config.string())) {
-        std::cerr << "Configuration load failure: " << config.string() << '\n';
+    if (!options.compose(configuration.string())) {
+        std::cerr << "Configuration load failure: " << configuration.string() << '\n';
         return 1;
     }
 
     std::size_t total = 0;
-    if (std::filesystem::exists(paths)) {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(paths)) {
+    if (std::filesystem::exists(directory)) {
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
             if (entry.is_regular_file()) {
                 if (const auto extension = entry.path().extension().string(); extension == ".otf" || extension == ".ttf" || extension == ".pfb") {
                     if (options.compose(entry.path().string())) {
@@ -80,14 +91,14 @@ int main(int count, char* args[]) {
     }
 
     render::typography::Registry registry(arena);
-    constexpr render::typography::Registry::Spec spec{
+    constexpr render::typography::Registry::Spec specification{
         .family = "text",
         .weight = 400,
         .slant = 0,
         .size = 12.0f
     };
 
-    render::typography::Font* font = registry.get(spec, *location);
+    render::typography::Font* font = registry.get(specification, *location);
     if (!font) {
         std::cerr << "Registry font instantiation failure\n";
         return 1;
@@ -108,8 +119,24 @@ int main(int count, char* args[]) {
     syntax::Cursor cursor(std::vector<syntax::Token>{});
     syntax::Mouth mouth(std::move(cursor), state, lexicon, arena);
 
-    constexpr std::string_view source = R"(\[ \hat{f}(\xi) = \int_{-\infty}^{\infty} f(x) e^{-2\pi i x \xi} \, dx \])";
-    mouth.ingest(source);
+    std::ifstream file(source, std::ios::binary | std::ios::ate);
+    if (!file) {
+        std::cerr << "Failed to open LaTeX file: " << source.string() << '\n';
+        options.dispose();
+        return 1;
+    }
+
+    const std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    std::string content(static_cast<std::size_t>(size), '\0');
+    if (!file.read(content.data(), size)) {
+        std::cerr << "Failed to read LaTeX file: " << source.string() << '\n';
+        options.dispose();
+        return 1;
+    }
+
+    mouth.ingest(content);
 
     syntax::Parser parser(mouth, arena);
 
@@ -138,7 +165,7 @@ int main(int count, char* args[]) {
         {}
     );
 
-    const auto metric = font->metrics(12.0f);
+    const auto metrics = font->metrics(12.0f);
     const auto point = std::chrono::high_resolution_clock::now();
 
     render::layout::Document::Configuration layout{
@@ -152,11 +179,10 @@ int main(int count, char* args[]) {
     };
 
     render::layout::Document document(arena, scratch, shaper, layout);
-    document.append(sample, *font, 12.0f);
-    document.append("Knuth-Plass optimal paragraph line breaking pass.", *font, 12.0f);
+    document.append(content, *font, 12.0f);
 
     document.layout();
-    const auto node = std::chrono::high_resolution_clock::now();
+    const auto tick = std::chrono::high_resolution_clock::now();
 
     auto* box = render::layout::Line::horizontal(arena, glyphs, layout.width);
 
@@ -170,6 +196,22 @@ int main(int count, char* args[]) {
     const auto pages = pager.paginate(box, context);
     const auto finish = std::chrono::high_resolution_clock::now();
 
+    const auto draw = std::chrono::high_resolution_clock::now();
+
+    memory::Slice<render::layout::Node*> nodes = arena.allocate<render::layout::Node*>(pages.count);
+    for (std::size_t index = 0; index < pages.count; ++index) {
+        nodes[index] = render::layout::Line::vertical(arena, pages[index].nodes, 0.0f);
+    }
+
+    render::Pdf::compose(nodes, output.string());
+
+    const auto paper = std::chrono::high_resolution_clock::now();
+
+    render::Wasm raster;
+    raster.compose(box, static_cast<int>(layout.width), static_cast<int>(layout.height));
+
+    const auto image = std::chrono::high_resolution_clock::now();
+
     if (!parser.tracebacks().empty()) {
         for (const auto& trace : parser.tracebacks()) {
             std::cerr << "Traceback error: " << trace.format() << "\n";
@@ -181,11 +223,13 @@ int main(int count, char* args[]) {
     const auto first = std::chrono::duration<double, std::micro>(mark - time).count();
     const auto second = std::chrono::duration<double, std::micro>(step - mark).count();
     const auto third = std::chrono::duration<double, std::micro>(point - step).count();
-    const auto fourth = std::chrono::duration<double, std::micro>(node - point).count();
-    const auto fifth = std::chrono::duration<double, std::micro>(finish - node).count();
-    const auto whole = std::chrono::duration<double, std::micro>(finish - start).count();
+    const auto fourth = std::chrono::duration<double, std::micro>(tick - point).count();
+    const auto fifth = std::chrono::duration<double, std::micro>(finish - tick).count();
+    const auto sixth = std::chrono::duration<double, std::micro>(paper - draw).count();
+    const auto seventh = std::chrono::duration<double, std::micro>(image - paper).count();
+    const auto whole = std::chrono::duration<double, std::micro>(image - start).count();
 
-    const auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - node).count();
+    const auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - tick).count();
 
     std::cout << std::fixed << std::setprecision(4);
 
@@ -195,14 +239,17 @@ int main(int count, char* args[]) {
     std::cout << "Shaped Glyph Nodes        : " << glyphs.count << '\n';
     std::cout << "Document Paragraphs       : " << document.paragraphs().count << '\n';
     std::cout << "Paginated Page Count      : " << pages.count << '\n';
-    std::cout << "Font Metrics Ascent/Height: " << metric.ascent << " / " << metric.height << "\n\n";
+    std::cout << "WASM Buffer Dimensions    : " << raster.width() << "x" << raster.height() << '\n';
+    std::cout << "Font Metrics Ascent/Height: " << metrics.ascent << " / " << metrics.height << "\n\n";
 
     std::cout << "[Subsystem Benchmarks]\n";
     std::cout << "Typography & Font Init    : " << first << " us\n";
     std::cout << "Pratt Syntax Parsing      : " << second << " us\n";
     std::cout << "HarfBuzz Glyph Shaping    : " << third << " us\n";
     std::cout << "Knuth-Plass Layout Pass   : " << fourth << " us\n";
-    std::cout << "Pager Pagination Pass     : " << fifth << " us (" << nanos << " ns)\n";
+    std::cout << "Pager Pagination Pass     : " << fifth << " us (" << nanoseconds << " ns)\n";
+    std::cout << "Skia PDF Composition Pass : " << sixth << " us\n";
+    std::cout << "Skia WASM Pixel Raster    : " << seventh << " us\n";
     std::cout << "Total End-to-End Execution: " << whole << " us\n";
 
     options.dispose();
