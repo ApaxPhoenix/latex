@@ -2,14 +2,15 @@
 #include "layout/document.hpp"
 #include "layout/line.hpp"
 #include "layout/pager.hpp"
+#include "layout/typesetter.hpp"
 #include "memory/arena.hpp"
-#include "render/pdf.hpp"
-#include "render/wasm.hpp"
 #include "syntax/cursor.hpp"
+#include "syntax/expression/node.hpp"
 #include "syntax/expression/parser.hpp"
 #include "syntax/expression/unicodes.hpp"
 #include "syntax/lexicon.hpp"
 #include "syntax/mouth.hpp"
+#include "syntax/node.hpp"
 #include "syntax/parser.hpp"
 #include "syntax/semantics/union.hpp"
 #include "syntax/tokens.hpp"
@@ -25,8 +26,6 @@
 #include <iomanip>
 #include <iostream>
 #include <string>
-#include <string_view>
-#include <tuple>
 #include <vector>
 
 int main(int count, char* arguments[]) {
@@ -47,7 +46,6 @@ int main(int count, char* arguments[]) {
     const std::filesystem::path directory = assets / "fonts";
     const std::filesystem::path configuration = directory / "aliases.conf";
     const std::filesystem::path source = root / "build" / "main.tex";
-    const std::filesystem::path output = root / "build" / "main.pdf";
 
     if (!std::filesystem::exists(configuration)) {
         std::cerr << "Alias configuration file missing at: " << configuration.string() << '\n';
@@ -138,35 +136,7 @@ int main(int count, char* arguments[]) {
 
     mouth.ingest(content);
 
-    syntax::Parser parser(mouth, arena);
-
-    parser.bind("\\[", [&](const syntax::Parser& instance) -> syntax::Node* {
-        syntax::expression::Parser expression(
-            instance.mouth(),
-            unicodes,
-            instance.arena(),
-            syntax::expression::Node::Style::Display
-        );
-        syntax::expression::Node* tree = expression.parse();
-        std::ignore = tree;
-        return instance.arena().compose<syntax::Node>();
-    });
-
-    const memory::Slice<syntax::Node*> outputs = parser.parse();
-    const auto step = std::chrono::high_resolution_clock::now();
-
     render::typography::Shaper shaper(arena);
-    const render::typography::Font* chain[] = { font };
-    constexpr std::string_view sample = "f(x) dx";
-
-    const auto glyphs = shaper.shape(
-        memory::Slice{chain, 1},
-        sample,
-        {}
-    );
-
-    const auto metrics = font->metrics(12.0f);
-    const auto point = std::chrono::high_resolution_clock::now();
 
     render::layout::Document::Configuration layout{
         .width = 612.0f,
@@ -179,38 +149,60 @@ int main(int count, char* arguments[]) {
     };
 
     render::layout::Document document(arena, scratch, shaper, layout);
-    document.append(content, *font, 12.0f);
 
-    document.layout();
+    syntax::Parser parser(mouth, arena);
+
+    parser.bind("\\[", [&](const syntax::Parser& instance) -> syntax::Node* {
+        syntax::expression::Parser expression(
+            instance.mouth(),
+            unicodes,
+            instance.arena(),
+            syntax::expression::Node::Style::Display
+        );
+        syntax::expression::Node* tree = expression.parse();
+
+        auto children = instance.arena().allocate<syntax::Node*>(1);
+        children[0] = reinterpret_cast<syntax::Node*>(tree);
+
+        return instance.arena().compose<syntax::Node>(
+            syntax::Node::Type::Expression,
+            std::string_view{},
+            memory::Location{},
+            children
+        );
+    });
+
+    const memory::Slice<syntax::Node*> outputs = parser.parse();
+    const auto step = std::chrono::high_resolution_clock::now();
+
+    for (std::size_t index = 0; index < outputs.count; ++index) {
+        const syntax::Node* node = outputs[index];
+        if (!node) continue;
+
+        if (node->type == syntax::Node::Type::Expression && node->nodes.count > 0) {
+            const auto* math = reinterpret_cast<const syntax::expression::Node*>(node->nodes[0]);
+            document.append(math, *font);
+        } else if (node->type == syntax::Node::Type::Text || node->type == syntax::Node::Type::Paragraph) {
+            if (!node->value.empty()) {
+                document.append(node->value, *font, 12.0f);
+            }
+        }
+    }
+
+    render::layout::Typesetter typesetter(arena, scratch);
+    const memory::Slice<render::layout::Pager::Page> pages = typesetter.compose(document);
     const auto tick = std::chrono::high_resolution_clock::now();
 
-    auto* box = render::layout::Line::horizontal(arena, glyphs, layout.width);
-
-    render::layout::Pager::Configuration page{ .height = layout.height };
-    render::layout::Pager pager(arena, page);
-
-    render::layout::Pager::Context context{
-        .height = layout.height - layout.top - layout.bottom
-    };
-
-    const auto pages = pager.paginate(box, context);
-    const auto finish = std::chrono::high_resolution_clock::now();
-
-    const auto draw = std::chrono::high_resolution_clock::now();
+    if (pages.count == 0) {
+        std::cerr << "Layout generation failed: zero pages composed\n";
+        options.dispose();
+        return 1;
+    }
 
     memory::Slice<render::layout::Node*> nodes = arena.allocate<render::layout::Node*>(pages.count);
     for (std::size_t index = 0; index < pages.count; ++index) {
         nodes[index] = render::layout::Line::vertical(arena, pages[index].nodes, 0.0f);
     }
-
-    render::Pdf::compose(nodes, output.string());
-
-    const auto paper = std::chrono::high_resolution_clock::now();
-
-    render::Wasm raster;
-    raster.compose(box, static_cast<int>(layout.width), static_cast<int>(layout.height));
-
-    const auto image = std::chrono::high_resolution_clock::now();
 
     if (!parser.tracebacks().empty()) {
         for (const auto& trace : parser.tracebacks()) {
@@ -220,36 +212,25 @@ int main(int count, char* arguments[]) {
         return 1;
     }
 
+    const auto metrics = font->metrics(12.0f);
     const auto first = std::chrono::duration<double, std::micro>(mark - time).count();
     const auto second = std::chrono::duration<double, std::micro>(step - mark).count();
-    const auto third = std::chrono::duration<double, std::micro>(point - step).count();
-    const auto fourth = std::chrono::duration<double, std::micro>(tick - point).count();
-    const auto fifth = std::chrono::duration<double, std::micro>(finish - tick).count();
-    const auto sixth = std::chrono::duration<double, std::micro>(paper - draw).count();
-    const auto seventh = std::chrono::duration<double, std::micro>(image - paper).count();
-    const auto whole = std::chrono::duration<double, std::micro>(image - start).count();
-
-    const auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - tick).count();
+    const auto fourth = std::chrono::duration<double, std::micro>(tick - step).count();
+    const auto whole = std::chrono::duration<double, std::micro>(tick - start).count();
 
     std::cout << std::fixed << std::setprecision(4);
 
     std::cout << "[Pipeline Metrics]\n";
     std::cout << "Registered font files     : " << total << '\n';
     std::cout << "Top-level AST Nodes       : " << outputs.count << '\n';
-    std::cout << "Shaped Glyph Nodes        : " << glyphs.count << '\n';
     std::cout << "Document Paragraphs       : " << document.paragraphs().count << '\n';
     std::cout << "Paginated Page Count      : " << pages.count << '\n';
-    std::cout << "WASM Buffer Dimensions    : " << raster.width() << "x" << raster.height() << '\n';
     std::cout << "Font Metrics Ascent/Height: " << metrics.ascent << " / " << metrics.height << "\n\n";
 
     std::cout << "[Subsystem Benchmarks]\n";
     std::cout << "Typography & Font Init    : " << first << " us\n";
     std::cout << "Pratt Syntax Parsing      : " << second << " us\n";
-    std::cout << "HarfBuzz Glyph Shaping    : " << third << " us\n";
-    std::cout << "Knuth-Plass Layout Pass   : " << fourth << " us\n";
-    std::cout << "Pager Pagination Pass     : " << fifth << " us (" << nanoseconds << " ns)\n";
-    std::cout << "Skia PDF Composition Pass : " << sixth << " us\n";
-    std::cout << "Skia WASM Pixel Raster    : " << seventh << " us\n";
+    std::cout << "Typesetter & Layout Pass  : " << fourth << " us\n";
     std::cout << "Total End-to-End Execution: " << whole << " us\n";
 
     options.dispose();

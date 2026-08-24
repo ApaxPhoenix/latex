@@ -4,8 +4,11 @@
 #include "layout/paragraph.hpp"
 #include "memory/arena.hpp"
 #include "memory/slice.hpp"
+#include "syntax/expression/node.hpp"
+#include "typography/font.hpp"
 #include "typography/shaper.hpp"
 
+#include <cstdint>
 #include <string_view>
 
 namespace render::layout {
@@ -23,7 +26,15 @@ namespace render::layout {
         };
 
         struct Element {
-            Paragraph* item{nullptr};
+            enum class Type : std::uint8_t {
+                Paragraph,
+                Expression
+            };
+
+            Type type{Type::Paragraph};
+            Paragraph* paragraph{nullptr};
+            const syntax::expression::Node* expression{nullptr};
+            const typography::Font* font{nullptr};
             Element* next{nullptr};
         };
 
@@ -46,8 +57,14 @@ namespace render::layout {
             float size
         ) noexcept;
 
+        void append(
+            const syntax::expression::Node* expression,
+            const typography::Font& font
+        ) noexcept;
+
         void layout() noexcept;
 
+        [[nodiscard]] memory::Slice<Element*> elements() const noexcept;
         [[nodiscard]] memory::Slice<Paragraph*> paragraphs() const noexcept;
         [[nodiscard]] const Configuration& configuration() const noexcept;
 

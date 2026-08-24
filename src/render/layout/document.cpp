@@ -7,7 +7,7 @@ namespace render::layout {
         memory::Arena& scratch,
         typography::Shaper& shaper
     ) noexcept
-        : arena(arena), scratch(scratch), shaper(shaper), cache(arena, 2048) {}
+        : arena(arena), scratch(scratch), shaper(shaper), cache(arena) {}
 
     Document::Document(
         memory::Arena& arena,
@@ -15,73 +15,95 @@ namespace render::layout {
         typography::Shaper& shaper,
         const Configuration& config
     ) noexcept
-        : arena(arena), scratch(scratch), shaper(shaper), cache(arena, 2048), config(config) {}
+        : arena(arena), scratch(scratch), shaper(shaper), cache(arena), config(config) {}
 
     Paragraph* Document::append(
-        std::string_view text,
+        const std::string_view text,
         const typography::Font& font,
-        float size
+        const float size
     ) noexcept {
-        auto* item = arena.compose<Paragraph>(arena, text, font, size);
-        auto* link = arena.compose<Element>();
-        link->item = item;
-        link->next = nullptr;
+        auto* paragraph = arena.compose<Paragraph>(arena, text, font, size);
+        auto* element = arena.compose<Element>();
+        element->type = Element::Type::Paragraph;
+        element->paragraph = paragraph;
 
         if (!head) {
-            head = link;
-            tail = link;
+            head = element;
         } else {
-            tail->next = link;
-            tail = link;
+            tail->next = element;
         }
-
+        tail = element;
         ++count;
-        return item;
+
+        return paragraph;
+    }
+
+    void Document::append(
+        const syntax::expression::Node* expression,
+        const typography::Font& font
+    ) noexcept {
+        if (!expression) return;
+
+        auto* element = arena.compose<Element>();
+        element->type = Element::Type::Expression;
+        element->expression = expression;
+        element->font = &font;
+
+        if (!head) {
+            head = element;
+        } else {
+            tail->next = element;
+        }
+        tail = element;
+        ++count;
     }
 
     void Document::layout() noexcept {
-        const float width = config.width - config.left - config.right;
-        float top = config.top;
-        float shift = 0.0f;
-
-        const Element* current = head;
+        const float target = config.width - config.left - config.right;
+        Element* current = head;
         while (current) {
-            Paragraph* item = current->item;
-            if (!item) {
-                current = current->next;
-                continue;
+            if (current->type == Element::Type::Paragraph && current->paragraph) {
+                current->paragraph->layout(shaper, cache, scratch, target, config.leading);
             }
-
-            if (item->dirty()) {
-                const float delta = item->layout(
-                    shaper,
-                    cache,
-                    scratch,
-                    width,
-                    config.leading
-                );
-                shift += delta;
-                item->offset(top);
-            } else {
-                if (shift != 0.0f) {
-                    item->offset(item->offset() + shift);
-                }
-            }
-
-            top = item->offset() + item->height() + config.leading;
             current = current->next;
         }
     }
 
-    memory::Slice<Paragraph*> Document::paragraphs() const noexcept {
+    memory::Slice<Document::Element*> Document::elements() const noexcept {
         if (count == 0) return {};
 
-        auto slice = arena.allocate<Paragraph*>(count);
-        const Element* current = head;
-        std::size_t step = 0;
+        auto slice = arena.allocate<Element*>(count);
+        Element* current = head;
+        std::size_t mark = 0;
 
-        while (current && step < count) {
-            slice[step++] = current->item;
+        while (current) {
+            slice[mark++] = current;
+            current = current->next;
+        }
+
+        return slice;
+    }
+
+    memory::Slice<Paragraph*> Document::paragraphs() const noexcept {
+        std::size_t total = 0;
+        const Element* current = head;
+        while (current) {
+            if (current->type == Element::Type::Paragraph) {
+                ++total;
+            }
+            current = current->next;
+        }
+
+        if (total == 0) return {};
+
+        auto slice = arena.allocate<Paragraph*>(total);
+        current = head;
+        std::size_t mark = 0;
+
+        while (current) {
+            if (current->type == Element::Type::Paragraph) {
+                slice[mark++] = current->paragraph;
+            }
             current = current->next;
         }
 

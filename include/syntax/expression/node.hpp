@@ -3,7 +3,6 @@
 #include "memory/slice.hpp"
 #include "unicodes.hpp"
 
-#include <cstdint>
 #include <string_view>
 
 namespace syntax::expression {
