@@ -1,7 +1,6 @@
 #pragma once
 
 #include <array>
-#include <cstdint>
 #include <vector>
 
 namespace syntax {
@@ -80,10 +79,10 @@ namespace syntax {
             const std::size_t mark = this->marks.back();
             this->marks.pop_back();
 
-            while (this->history.size() > mark) {
-                const auto entry = this->history.back();
+            for (std::size_t count = this->history.size() - mark; count > 0; --count) {
+                const auto [symbol, category] = this->history.back();
                 this->history.pop_back();
-                this->table[entry.symbol] = entry.category;
+                this->table[symbol] = category;
             }
         }
 

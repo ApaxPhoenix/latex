@@ -1,6 +1,7 @@
 #include "syntax/expression/parser.hpp"
 #include "logger.hpp"
 
+#include <array>
 #include <cctype>
 
 namespace syntax::expression {
@@ -49,7 +50,22 @@ namespace syntax::expression {
             ~Guard() { --depth; }
         } guard(depth);
 
-        std::vector<Node*> items;
+        std::array<Node*, 32> stack{};
+        std::vector<Node*> heap{};
+        std::size_t count = 0;
+
+        auto push = [&](Node* item) {
+            if (count < stack.size()) {
+                stack[count] = item;
+            } else {
+                if (heap.empty()) {
+                    heap.reserve(64);
+                    heap.assign(stack.begin(), stack.end());
+                }
+                heap.push_back(item);
+            }
+            ++count;
+        };
 
         while (true) {
             const Token next = lookahead();
@@ -74,20 +90,22 @@ namespace syntax::expression {
             if (!item) {
                 break;
             }
-            items.push_back(item);
+            push(item);
         }
 
-        if (items.empty()) {
+        if (count == 0) {
             return nullptr;
         }
-        if (items.size() == 1) {
-            return items[0];
+        if (count == 1) {
+            return stack[0];
         }
 
         auto* node = compose(Node::Type::Sequence);
-        auto slice = arena.allocate<Node*>(items.size());
-        for (std::size_t index = 0; index < items.size(); ++index) {
-            slice[index] = items[index];
+        auto slice = arena.allocate<Node*>(count);
+        if (heap.empty()) {
+            std::copy_n(stack.begin(), count, slice.begin());
+        } else {
+            std::copy_n(heap.begin(), count, slice.begin());
         }
         node->arguments = slice;
         return node;
@@ -103,35 +121,54 @@ namespace syntax::expression {
         auto* node = compose(Node::Type::Sequence);
         node->value = token.values;
 
-        if (lookahead().values == "[") {
+        const Token lead = lookahead();
+        if (lead.values.size() == 1 && lead.values[0] == '[') {
             advance();
             node->subscript = sequence(']');
         }
 
-        std::vector<Node*> parameters;
+        std::array<Node*, 16> stack{};
+        std::vector<Node*> heap{};
+        std::size_t count = 0;
+
+        auto push = [&](Node* item) {
+            if (count < stack.size()) {
+                stack[count] = item;
+            } else {
+                if (heap.empty()) {
+                    heap.reserve(32);
+                    heap.assign(stack.begin(), stack.end());
+                }
+                heap.push_back(item);
+            }
+            ++count;
+        };
+
         while (true) {
             const Token next = lookahead();
             if (next.values.empty()) break;
 
-            if (next.values == "{") {
+            if (next.category == CatCodes::Category::Group && next.values.size() == 1 && next.values[0] == '{') {
                 advance();
-                parameters.push_back(sequence('}'));
+                push(sequence('}'));
             } else if (next.category == CatCodes::Category::Escape ||
                        (next.values.size() == 1 && std::isalnum(static_cast<unsigned char>(next.values[0])))) {
-                parameters.push_back(core());
+                push(core());
             } else {
                 break;
             }
         }
 
-        if (!parameters.empty()) {
-            auto slice = arena.allocate<Node*>(parameters.size());
-            for (std::size_t index = 0; index < parameters.size(); ++index) {
-                slice[index] = parameters[index];
+        if (count > 0) {
+            auto slice = arena.allocate<Node*>(count);
+            if (heap.empty()) {
+                std::copy_n(stack.begin(), count, slice.begin());
+            } else {
+                std::copy_n(heap.begin(), count, slice.begin());
             }
             node->arguments = slice;
-            if (!parameters.empty()) node->left = parameters[0];
-            if (parameters.size() >= 2) node->right = parameters[1];
+            node->left = slice[0];
+            if (count >= 2) node->right = slice[1];
         }
 
         return node;
@@ -141,7 +178,8 @@ namespace syntax::expression {
         auto* node = compose(type);
 
         if (type == Node::Type::Radical) {
-            if (lookahead().values == "[") {
+            const Token next = lookahead();
+            if (next.values.size() == 1 && next.values[0] == '[') {
                 advance();
                 node->left = sequence(']');
             }
@@ -162,8 +200,10 @@ namespace syntax::expression {
             return nullptr;
         }
 
-        if (token.values == "{") return group('}');
-        if (token.values == "(") return group(')');
+        if (token.values.size() == 1) {
+            if (token.values[0] == '{') return group('}');
+            if (token.values[0] == '(') return group(')');
+        }
 
         if (const auto index = static_cast<std::size_t>(token.symbol); index < rules.size() && rules[index].structural) {
             return structural(rules[index].type);
@@ -196,10 +236,10 @@ namespace syntax::expression {
 
         if (const auto index = static_cast<std::size_t>(next.symbol); index < rules.size() && rules[index].type == Node::Type::Unary && rules[index].weight == 0) {
             const Token token = advance();
-            auto* unaryNode = compose(Node::Type::Unary);
-            unaryNode->value = token.values;
-            unaryNode->left = atom();
-            return script(unaryNode);
+            auto* unary = compose(Node::Type::Unary);
+            unary->value = token.values;
+            unary->left = atom();
+            return script(unary);
         }
 
         return script(core());
@@ -212,10 +252,11 @@ namespace syntax::expression {
         Node* superscript = nullptr;
 
         while (true) {
-            if (const Token next = lookahead(); next.values == "_") {
+            const Token next = lookahead();
+            if (next.category == CatCodes::Category::Index || (next.values.size() == 1 && next.values[0] == '_')) {
                 advance();
                 subscript = core();
-            } else if (next.values == "^") {
+            } else if (next.category == CatCodes::Category::Mark || (next.values.size() == 1 && next.values[0] == '^')) {
                 advance();
                 superscript = core();
             } else {
@@ -240,7 +281,8 @@ namespace syntax::expression {
 
         while (true) {
             const Token next = lookahead();
-            if (next.values.empty() || next.values == "}" || next.values == ")" || next.values == "]") {
+            if (next.values.empty()) break;
+            if (next.values.size() == 1 && (next.values[0] == '}' || next.values[0] == ')' || next.values[0] == ']')) {
                 break;
             }
 
