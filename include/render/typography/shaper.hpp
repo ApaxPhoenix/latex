@@ -21,6 +21,13 @@ namespace render::typography {
         ) const;
 
     private:
+        struct Utf {
+            std::uint32_t code{0};
+            std::size_t size{0};
+        };
+
+        [[nodiscard]] static constexpr Utf resolve(std::string_view text, std::size_t index) noexcept;
+
         memory::Arena& arena;
     };
 
