@@ -11,8 +11,13 @@ find_program(GPERF_EXECUTABLE gperf REQUIRED)
 find_package(unofficial-skia CONFIG REQUIRED)
 find_package(Fontconfig REQUIRED)
 find_package(Freetype REQUIRED)
-find_package(harfbuzz CONFIG REQUIRED)
 find_package(EXPAT REQUIRED)
+
+find_package(harfbuzz CONFIG QUIET)
+if(NOT harfbuzz_FOUND)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(HARFBUZZ REQUIRED harfbuzz)
+endif()
 
 set(LOOKUP_INPUT "${CMAKE_CURRENT_SOURCE_DIR}/assets/unicodes.gperf")
 set(LOOKUP_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/lookup.hpp")
@@ -64,11 +69,22 @@ target_link_libraries(latex PRIVATE
         unofficial::skia::skia
         Fontconfig::Fontconfig
         Freetype::Freetype
-        harfbuzz::harfbuzz
         EXPAT::EXPAT
-        dwrite
-        gdi32
-        user32
-        opengl32
-        usp10
 )
+
+if(TARGET harfbuzz::harfbuzz)
+    target_link_libraries(latex PRIVATE harfbuzz::harfbuzz)
+else()
+    target_link_libraries(latex PRIVATE ${HARFBUZZ_LIBRARIES})
+    target_include_directories(latex PRIVATE ${HARFBUZZ_INCLUDE_DIRS})
+endif()
+
+if(WIN32)
+    target_link_libraries(latex PRIVATE
+            dwrite
+            gdi32
+            user32
+            opengl32
+            usp10
+    )
+endif()
