@@ -13,7 +13,7 @@ namespace syntax::expression {
     }
 
     void Unicodes::dispose(const std::string_view name) {
-        overrides.erase(name);
+        overrides.erase(std::string(name));
     }
 
     std::optional<Unicodes::Symbol> Unicodes::query(const std::string_view name) const noexcept {
