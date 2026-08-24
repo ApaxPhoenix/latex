@@ -1,9 +1,67 @@
 #include "typography/hyphenator.hpp"
 
+#include <cctype>
+#include <fstream>
+#include <string>
+
 namespace render::typography {
 
     Hyphenator::Hyphenator(memory::Arena& arena) noexcept : arena(arena) {
         root = arena.compose<Node>();
+    }
+
+    void Hyphenator::load(const std::string_view path) const {
+        std::ifstream file(path.data());
+        if (!file.is_open()) return;
+
+        std::string line;
+        while (std::getline(file, line)) {
+            if (const auto pos = line.find('%'); pos != std::string::npos) {
+                line.erase(pos);
+            }
+
+            std::size_t start = 0;
+            while (start < line.size()) {
+                while (start < line.size() && std::isspace(static_cast<unsigned char>(line[start]))) {
+                    ++start;
+                }
+                if (start >= line.size()) break;
+
+                std::size_t end = start;
+                while (end < line.size() && !std::isspace(static_cast<unsigned char>(line[end]))) {
+                    ++end;
+                }
+
+                const std::string_view token = std::string_view(line).substr(start, end - start);
+                start = end;
+
+                std::size_t count = 0;
+                for (const char character : token) {
+                    if (character < '0' || character > '9') ++count;
+                }
+                if (count == 0) continue;
+
+                auto chars = arena.allocate<std::uint32_t>(count);
+                auto levels = arena.allocate<std::uint8_t>(count + 1);
+                for (std::size_t step = 0; step <= count; ++step) levels[step] = 0;
+
+                std::size_t index = 0;
+                std::uint8_t digit = 0;
+                for (const char character : token) {
+                    if (character >= '0' && character <= '9') {
+                        digit = static_cast<std::uint8_t>(character - '0');
+                    } else {
+                        levels[index] = digit;
+                        chars[index] = static_cast<std::uint32_t>(static_cast<unsigned char>(character));
+                        digit = 0;
+                        ++index;
+                    }
+                }
+                levels[count] = digit;
+
+                compose(chars, levels);
+            }
+        }
     }
 
     void Hyphenator::compose(const memory::Slice<std::uint32_t> pattern, const memory::Slice<std::uint8_t> levels) const noexcept {

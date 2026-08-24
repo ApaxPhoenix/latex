@@ -4,6 +4,7 @@
 #include "memory/slice.hpp"
 
 #include <cstdint>
+#include <string_view>
 
 namespace render::typography {
 
@@ -18,6 +19,7 @@ namespace render::typography {
 
         explicit Hyphenator(memory::Arena& arena) noexcept;
 
+        void load(std::string_view path) const;
         void compose(memory::Slice<std::uint32_t> pattern, memory::Slice<std::uint8_t> levels) const noexcept;
         [[nodiscard]] memory::Slice<std::uint8_t> execute(
             memory::Arena& scratch,
