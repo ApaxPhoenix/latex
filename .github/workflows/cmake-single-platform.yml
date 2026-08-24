@@ -29,6 +29,12 @@ jobs:
           build-essential \
           ninja-build \
           gperf \
+          autoconf \
+          autoconf-archive \
+          automake \
+          libtool \
+          bison \
+          flex \
           libfontconfig1-dev \
           libfreetype6-dev \
           libharfbuzz-dev \
