@@ -35,6 +35,9 @@ jobs:
           libexpat1-dev \
           libgl1-mesa-dev
 
+    - name: Install Skia via vcpkg
+      run: $VCPKG_INSTALLATION_ROOT/vcpkg install skia:x64-linux
+
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
