@@ -37,6 +37,7 @@ namespace render::typography {
         [[nodiscard]] FT_Face ft() const noexcept { return native; }
         [[nodiscard]] hb_face_t* hb() const noexcept { return handle; }
         [[nodiscard]] std::uint32_t units() const noexcept { return scale; }
+        [[nodiscard]] std::span<const std::uint8_t> data() const noexcept { return storage; }
 
     private:
         FT_Face native{nullptr};

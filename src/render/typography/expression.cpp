@@ -55,19 +55,17 @@ namespace render::typography {
         return Variant{.glyph = glyph, .advance = height};
     }
 
-    float Expression::kern(const std::uint32_t first, const std::uint32_t second) const noexcept {
+    float Expression::kern(const std::uint32_t glyph, const float height) const noexcept {
         if (!parent.hb()) return 0.0f;
 
-        const auto safe_height = std::min<std::uint32_t>(
-            second,
-            std::numeric_limits<hb_position_t>::max()
-        );
+        constexpr auto limit = static_cast<float>(std::numeric_limits<hb_position_t>::max());
+        const float clamped = std::clamp(height, 0.0f, limit);
 
         return static_cast<float>(hb_ot_math_get_glyph_kerning(
             parent.hb(),
-            first,
+            glyph,
             HB_OT_MATH_KERN_BOTTOM_RIGHT,
-            static_cast<hb_position_t>(safe_height)
+            static_cast<hb_position_t>(clamped)
         ));
     }
 

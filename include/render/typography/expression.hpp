@@ -27,7 +27,7 @@ namespace render::typography {
         [[nodiscard]] Metric metrics() const noexcept;
         [[nodiscard]] std::uint32_t glyph(std::uint32_t code) const noexcept;
         [[nodiscard]] Variant scale(std::uint32_t glyph, float height) const noexcept;
-        [[nodiscard]] float kern(std::uint32_t first, std::uint32_t second) const noexcept;
+        [[nodiscard]] float kern(std::uint32_t glyph, float height) const noexcept;
 
     private:
         const Font& parent;

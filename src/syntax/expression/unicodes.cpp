@@ -1,7 +1,6 @@
 #include "syntax/expression/unicodes.hpp"
 #include "lookup.hpp"
 
-#include <array>
 #include <cstring>
 
 namespace syntax::expression {

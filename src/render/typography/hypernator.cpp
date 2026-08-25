@@ -41,7 +41,7 @@ namespace render::typography {
                 }
                 if (count == 0) continue;
 
-                auto chars = arena.allocate<std::uint32_t>(count);
+                auto characters = arena.allocate<std::uint32_t>(count);
                 auto levels = arena.allocate<std::uint8_t>(count + 1);
                 for (std::size_t step = 0; step <= count; ++step) levels[step] = 0;
 
@@ -52,14 +52,14 @@ namespace render::typography {
                         digit = static_cast<std::uint8_t>(character - '0');
                     } else {
                         levels[index] = digit;
-                        chars[index] = static_cast<std::uint32_t>(static_cast<unsigned char>(character));
+                        characters[index] = static_cast<std::uint32_t>(static_cast<unsigned char>(character));
                         digit = 0;
                         ++index;
                     }
                 }
                 levels[count] = digit;
 
-                compose(chars, levels);
+                compose(characters, levels);
             }
         }
     }
@@ -101,7 +101,7 @@ namespace render::typography {
         const std::uint32_t pad,
         const std::size_t boundary
     ) const {
-        if (word.count < boundary || !root) return {};
+        if (word.count < boundary || boundary == 0 || !root) return {};
 
         const std::size_t length = word.count;
         const std::size_t total = length + 2;
@@ -142,7 +142,7 @@ namespace render::typography {
         for (std::size_t index = 0; index < length; ++index) result[index] = 0;
 
         for (std::size_t outer = boundary; outer < total - (boundary - 1); ++outer) {
-            if (levels[outer] & 1) result[outer - 2] = 1;
+            if (levels[outer] & 1) result[outer - boundary] = 1;
         }
 
         return result;

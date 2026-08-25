@@ -94,7 +94,7 @@ namespace render::layout {
         }
 
         const Node::Box data{
-            .width = (target > 0.0f) ? target : natural,
+            .width = target > 0.0f ? target : natural,
             .height = height,
             .depth = depth,
             .shift = 0.0f,
@@ -115,8 +115,8 @@ namespace render::layout {
     ) noexcept {
         auto* box = arena.compose<Node>(Node::Type::Box);
 
-        float height = 0.0f;
         float width = 0.0f;
+        float height = 0.0f;
 
         const std::size_t count = nodes.size();
         const std::size_t total = count + (count > 1 ? count - 1 : 0);
@@ -141,6 +141,19 @@ namespace render::layout {
                 pointer[mark++] = glue;
                 height += skip;
             }
+        }
+
+        // Center every child box against the widest one. This mirrors TeX's
+        // convention that a box's shift inside a vlist is a rightward offset;
+        // full-width lines (already packed via Line::horizontal) resolve to
+        // zero shift here, so paragraph flow is unaffected.
+        for (std::size_t step = 0; step < mark; ++step) {
+            Node* child = pointer[step];
+            if (!child || child->type() != Node::Type::Box) continue;
+
+            auto data = child->box();
+            data.shift = (width - data.width) * 0.5f;
+            child->box(data);
         }
 
         const Node::Box data{
