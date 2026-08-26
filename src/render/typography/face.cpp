@@ -9,6 +9,8 @@
 
 namespace render::typography {
 
+    thread_local Face::Instance Face::instance{};
+
     Face::Instance::Instance() noexcept {
         if (FT_Init_FreeType(&library) != 0) {
             Logger::log(Logger::Type::Layout, Logger::Level::Error, "FreeType library init failed");

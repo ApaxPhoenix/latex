@@ -20,7 +20,7 @@ namespace render::typography {
             ~Instance() noexcept;
         };
 
-        inline static thread_local Instance instance{};
+        static thread_local Instance instance;
 
         Face() noexcept = default;
         ~Face() noexcept;

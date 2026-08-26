@@ -2,6 +2,7 @@
 
 #include <array>
 #include <vector>
+#include <cstdint> // MSYS requires this, since it's not provided by default.
 
 namespace syntax {
 

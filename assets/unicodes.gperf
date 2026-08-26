@@ -1,6 +1,8 @@
 %{
 #include "syntax/expression/unicodes.hpp"
 
+#include <cstring>
+
 using namespace syntax::expression;
 %}
 struct Entry {

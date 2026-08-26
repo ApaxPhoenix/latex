@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <cstdint> // MSYS requires this, since it's not provided by default.
 #include <string>
 #include <string_view>
 #include <unordered_map>
