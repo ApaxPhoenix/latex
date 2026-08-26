@@ -1,9 +1,9 @@
 #include "logger.hpp"
 #include "layout/document.hpp"
-#include "layout/line.hpp"
-#include "layout/pager.hpp"
 #include "layout/typesetter.hpp"
 #include "memory/arena.hpp"
+#include "render/composer.hpp"
+#include "render/pdf.hpp"
 #include "syntax/cursor.hpp"
 #include "syntax/expression/node.hpp"
 #include "syntax/expression/parser.hpp"
@@ -46,6 +46,7 @@ int main(int count, char* arguments[]) {
     const std::filesystem::path directory = assets / "fonts";
     const std::filesystem::path configuration = directory / "aliases.conf";
     const std::filesystem::path source = root / "build" / "main.tex";
+    const std::filesystem::path destination = root / "build" / "main.pdf";
 
     if (!std::filesystem::exists(configuration)) {
         std::cerr << "Alias configuration file missing at: " << configuration.string() << '\n';
@@ -137,18 +138,8 @@ int main(int count, char* arguments[]) {
     mouth.ingest(content);
 
     render::typography::Shaper shaper(arena);
-
-    render::layout::Document::Configuration layout{
-        .width = 612.0f,
-        .height = 792.0f,
-        .left = 72.0f,
-        .right = 72.0f,
-        .top = 72.0f,
-        .bottom = 72.0f,
-        .leading = 14.0f
-    };
-
-    render::layout::Document document(arena, scratch, shaper, layout);
+    render::layout::Typesetter typesetter(arena, scratch);
+    render::Composer composer(arena, scratch, shaper, typesetter);
 
     syntax::Parser parser(mouth, arena);
 
@@ -181,28 +172,21 @@ int main(int count, char* arguments[]) {
 
         if (node->type == syntax::Node::Type::Expression && node->nodes.count > 0) {
             const auto* math = reinterpret_cast<const syntax::expression::Node*>(node->nodes[0]);
-            document.append(math, *font);
+            composer.document().append(math, *font);
         } else if (node->type == syntax::Node::Type::Text || node->type == syntax::Node::Type::Paragraph) {
             if (!node->value.empty()) {
-                document.append(node->value, *font, 12.0f);
+                composer.document().append(node->value, *font, 12.0f);
             }
         }
     }
 
-    render::layout::Typesetter typesetter(arena, scratch);
-    const memory::Slice<render::layout::Pager::Page> pages = typesetter.compose(document);
-    const auto tick = std::chrono::high_resolution_clock::now();
-
-    if (pages.count == 0) {
-        std::cerr << "Layout generation failed: zero pages composed\n";
+    const auto pdf_start = std::chrono::high_resolution_clock::now();
+    if (!render::Pdf::compose(composer, 612.0f, 792.0f, destination.string())) {
+        std::cerr << "Failed to output PDF to: " << destination.string() << '\n';
         options.dispose();
         return 1;
     }
-
-    memory::Slice<render::layout::Node*> nodes = arena.allocate<render::layout::Node*>(pages.count);
-    for (std::size_t index = 0; index < pages.count; ++index) {
-        nodes[index] = render::layout::Line::vertical(arena, pages[index].nodes, 0.0f);
-    }
+    const auto tick = std::chrono::high_resolution_clock::now();
 
     if (!parser.tracebacks().empty()) {
         for (const auto& trace : parser.tracebacks()) {
@@ -212,10 +196,9 @@ int main(int count, char* arguments[]) {
         return 1;
     }
 
-    const auto metrics = font->metrics(12.0f);
     const auto first = std::chrono::duration<double, std::micro>(mark - time).count();
     const auto second = std::chrono::duration<double, std::micro>(step - mark).count();
-    const auto fourth = std::chrono::duration<double, std::micro>(tick - step).count();
+    const auto fourth = std::chrono::duration<double, std::micro>(tick - pdf_start).count();
     const auto whole = std::chrono::duration<double, std::micro>(tick - start).count();
 
     std::cout << std::fixed << std::setprecision(4);
@@ -223,14 +206,13 @@ int main(int count, char* arguments[]) {
     std::cout << "[Pipeline Metrics]\n";
     std::cout << "Registered font files     : " << total << '\n';
     std::cout << "Top-level AST Nodes       : " << outputs.count << '\n';
-    std::cout << "Document Paragraphs       : " << document.paragraphs().count << '\n';
-    std::cout << "Paginated Page Count      : " << pages.count << '\n';
-    std::cout << "Font Metrics Ascent/Height: " << metrics.ascent << " / " << metrics.height << "\n\n";
+    std::cout << "Document Paragraphs       : " << composer.document().paragraphs().count << '\n';
+    std::cout << "Output File               : " << destination.string() << "\n\n";
 
     std::cout << "[Subsystem Benchmarks]\n";
     std::cout << "Typography & Font Init    : " << first << " us\n";
     std::cout << "Pratt Syntax Parsing      : " << second << " us\n";
-    std::cout << "Typesetter & Layout Pass  : " << fourth << " us\n";
+    std::cout << "PDF Composition & Render  : " << fourth << " us\n";
     std::cout << "Total End-to-End Execution: " << whole << " us\n";
 
     options.dispose();

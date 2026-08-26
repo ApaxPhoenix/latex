@@ -25,7 +25,7 @@ namespace render {
             memory::Arena& scratch,
             typography::Shaper& shaper,
             layout::Typesetter& typesetter,
-            SkCanvas* canvas
+            SkCanvas* canvas = nullptr
         ) noexcept;
 
         void feed(memory::Slice<syntax::Node*> ast, const typography::Font& font, float size);
@@ -36,7 +36,10 @@ namespace render {
         void draw(const layout::Node* root, float x = 0.0f, float y = 0.0f) const;
         void draw(memory::Slice<layout::Node*> nodes, float x = 0.0f, float y = 0.0f) const;
 
-        [[nodiscard]] layout::Document& document() noexcept { return doc; }
+        void canvas(SkCanvas* newCanvas) noexcept { _canvas = newCanvas; }
+
+        [[nodiscard]] layout::Document& document() noexcept { return document_; }
+        [[nodiscard]] layout::Typesetter& typesetter() const noexcept { return typesetter_; }
 
     private:
         void stack(memory::Slice<layout::Node*> nodes, float x, float y) const;
@@ -48,10 +51,10 @@ namespace render {
         memory::Arena& arena;
         memory::Arena& scratch;
         typography::Shaper& shaper;
-        layout::Typesetter& typesetter;
-        layout::Document doc;
+        layout::Typesetter& typesetter_;
+        layout::Document document_;
 
-        SkCanvas* canvas{nullptr};
+        SkCanvas* _canvas{nullptr};
         SkPaint ink{};
         mutable std::unordered_map<const typography::Font*, SkFont> fonts{};
     };
