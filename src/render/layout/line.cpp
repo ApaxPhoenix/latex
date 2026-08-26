@@ -128,25 +128,21 @@ namespace render::layout {
             Node* child = nodes[step];
             if (!child) continue;
 
+            if (skip > 0.0f && mark > 0) {
+                auto* glue = arena.compose<Node>(Node::Type::Glue);
+                glue->glue({ .width = skip, .stretch = 0.0f, .shrink = 0.0f });
+                pointer[mark++] = glue;
+                height += skip;
+            }
+
             if (child->type() == Node::Type::Box) {
                 width = std::max(width, child->box().width);
                 height += child->box().height + child->box().depth;
             }
 
             pointer[mark++] = child;
-
-            if (skip > 0.0f && step + 1 < count) {
-                auto* glue = arena.compose<Node>(Node::Type::Glue);
-                glue->glue({ .width = skip, .stretch = 0.0f, .shrink = 0.0f });
-                pointer[mark++] = glue;
-                height += skip;
-            }
         }
 
-        // Center every child box against the widest one. This mirrors TeX's
-        // convention that a box's shift inside a vlist is a rightward offset;
-        // full-width lines (already packed via Line::horizontal) resolve to
-        // zero shift here, so paragraph flow is unaffected.
         for (std::size_t step = 0; step < mark; ++step) {
             Node* child = pointer[step];
             if (!child || child->type() != Node::Type::Box) continue;

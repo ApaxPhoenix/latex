@@ -21,7 +21,7 @@ namespace memory {
         auto* block = &blocks.back();
 
         auto address = reinterpret_cast<std::uintptr_t>(block->buffer.get() + block->offset);
-        std::uintptr_t aligned = address + alignment - 1 & ~(alignment - 1);
+        std::uintptr_t aligned = (address + alignment - 1) & ~(alignment - 1);
         std::size_t padding = aligned - address;
 
         if (block->offset + padding + size > block->capacity) {
@@ -57,7 +57,25 @@ namespace memory {
     }
 
     void Arena::reset() noexcept {
-        for (auto& block : blocks) block.offset = 0;
+        if (blocks.empty()) return;
+
+        std::size_t index = 0;
+        std::size_t peak = 0;
+
+        for (std::size_t step = 0; step < blocks.size(); ++step) {
+            if (blocks[step].capacity > peak) {
+                peak = blocks[step].capacity;
+                index = step;
+            }
+        }
+
+        if (index != 0) {
+            std::swap(blocks[0], blocks[index]);
+        }
+
+        blocks[0].offset = 0;
+        blocks.resize(1);
+        capacity = blocks[0].capacity * 2;
     }
 
     void Arena::dispose() noexcept {

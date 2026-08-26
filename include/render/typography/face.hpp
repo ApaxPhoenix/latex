@@ -40,6 +40,8 @@ namespace render::typography {
         [[nodiscard]] std::span<const std::uint8_t> data() const noexcept { return storage; }
 
     private:
+        [[nodiscard]] bool load(std::vector<std::uint8_t> bytes) noexcept;
+
         FT_Face native{nullptr};
         hb_face_t* handle{nullptr};
         std::uint32_t scale{0};

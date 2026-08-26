@@ -55,6 +55,7 @@ namespace syntax {
         void define(Symbol symbol, Macro macro);
         void undefine(std::string_view name);
         void undefine(Symbol symbol);
+        void inhibit() noexcept { this->suppress = true; }
 
         [[nodiscard]] semantics::Union& state() const noexcept { return union_; }
         [[nodiscard]] Lexicon& lexicon() const noexcept { return lexicon_; }
