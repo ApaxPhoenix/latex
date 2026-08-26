@@ -36,7 +36,14 @@ namespace render::typography {
     Face& Face::operator=(Face&& input) noexcept {
         if (this != &input) {
             std::scoped_lock guard(mutex, input.mutex);
-            dispose();
+
+            if (handle) {
+                hb_face_destroy(handle);
+            }
+            if (native) {
+                FT_Done_Face(native);
+            }
+
             native = std::exchange(input.native, nullptr);
             handle = std::exchange(input.handle, nullptr);
             scale = std::exchange(input.scale, 0);
@@ -47,6 +54,7 @@ namespace render::typography {
 
     void Face::dispose() noexcept {
         std::lock_guard guard(mutex);
+
         if (handle) {
             hb_face_destroy(handle);
             handle = nullptr;
@@ -123,7 +131,15 @@ namespace render::typography {
             return false;
         }
 
-        dispose();
+        std::lock_guard guard(mutex);
+
+        if (handle) {
+            hb_face_destroy(handle);
+        }
+        if (native) {
+            FT_Done_Face(native);
+        }
+
         storage = std::move(bytes);
         native = loaded;
         handle = created;

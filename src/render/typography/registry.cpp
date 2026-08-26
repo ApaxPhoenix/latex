@@ -55,6 +55,8 @@ namespace render::typography {
 
         if (!node->font.compose(node->face, spec.size)) {
             Logger::fmt(Logger::Type::Layout, Logger::Level::Error, "Failed loading font for registry: {}", spec.family);
+            node->font.dispose();
+            node->face.dispose();
             return nullptr;
         }
 
