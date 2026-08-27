@@ -15,6 +15,7 @@ namespace syntax {
 
     void Mouth::push() {
         this->marks.push_back(this->records.size());
+        this->deferred.emplace_back();
         this->union_.push();
         Logger::fmt(Logger::Type::Mouth, Logger::Level::Debug, "State push (depth={})", this->marks.size());
     }
@@ -40,6 +41,12 @@ namespace syntax {
                 this->macros[symbol_] = std::move(macros_);
                 this->macros[symbol_].active = active_;
             }
+        }
+
+        if (!this->deferred.empty()) {
+            std::vector<Token> pending = std::move(this->deferred.back());
+            this->deferred.pop_back();
+            if (!pending.empty()) this->inject(pending);
         }
     }
 
@@ -128,8 +135,7 @@ namespace syntax {
         if (this->cursor.empty()) return result;
 
         if (parameter.optional) {
-            const Token lead = this->cursor.lookahead(0);
-            if (lead.category == CatCodes::Category::Other && lead.values == "[") {
+            if (const Token lead = this->cursor.lookahead(0); lead.category == CatCodes::Category::Other && lead.values == "[") {
                 this->cursor.advance();
                 std::size_t scope = 1;
                 while (!this->cursor.empty() && scope > 0) {
@@ -246,7 +252,7 @@ namespace syntax {
         const auto slot = static_cast<std::size_t>(symbol);
 
         if (!this->global && !this->marks.empty()) {
-            const bool active = (slot < this->macros.size() && this->macros[slot].active);
+            const bool active = slot < this->macros.size() && this->macros[slot].active;
             const Macro previous = active ? this->macros[slot] : Macro{};
             this->records.push_back(Record{symbol, previous, active});
         }
@@ -257,6 +263,12 @@ namespace syntax {
         macro.active = true;
         this->macros[slot] = std::move(macro);
         this->global = false;
+
+        if (this->scheduled) {
+            const Token pending = *this->scheduled;
+            this->scheduled.reset();
+            this->inject(std::span{&pending, 1});
+        }
     }
 
     void Mouth::undefine(const std::string_view name) {
@@ -271,6 +283,48 @@ namespace syntax {
             this->macros[slot].active = false;
         }
         this->global = false;
+
+        if (this->scheduled) {
+            const Token pending = *this->scheduled;
+            this->scheduled.reset();
+            this->inject(std::span{&pending, 1});
+        }
+    }
+    
+    void Mouth::defer(const Token &token) {
+        if (!this->deferred.empty()) {
+            this->deferred.back().push_back(token);
+        }
+    }
+    
+    void Mouth::schedule(const Token &token) {
+        this->scheduled = token;
+    }
+    
+    Token Mouth::lookahead(const std::size_t offset) const noexcept {
+        return this->cursor.lookahead(offset);
+    }
+
+    std::optional<Mouth::Macro> Mouth::lookup(const Symbol symbol) const noexcept {
+        if (const auto slot = static_cast<std::size_t>(symbol); slot < this->macros.size() && this->macros[slot].active) {
+            return this->macros[slot];
+        }
+        return std::nullopt;
+    }
+
+    Mouth::Handler Mouth::primitive(const Symbol symbol) const noexcept {
+        if (const auto slot = static_cast<std::size_t>(symbol); slot < this->handler.size()) {
+            return this->handler[slot];
+        }
+        return {};
+    }
+
+    std::optional<std::int32_t> Mouth::integer(const semantics::Registers& registers, const Symbol count) {
+        return Number::integer(this->cursor, registers, count);
+    }
+
+    std::optional<std::int32_t> Mouth::dimension(const semantics::Registers& registers, const Symbol count, const Symbol unit) {
+        return Number::dimension(this->cursor, registers, count, unit);
     }
 
 }

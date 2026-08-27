@@ -8,6 +8,7 @@
 #include "memory/arena.hpp"
 
 #include <functional>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -49,13 +50,21 @@ namespace syntax {
 
         void inject(std::span<const Token> tokens);
         void ingest(std::string_view source);
-        void bind(std::string_view name, Handler handler);
-        void bind(Symbol symbol, Handler handler);
+        void bind(std::string_view name, Handler handler_);
+        void bind(Symbol symbol, Handler handler_);
         void define(std::string_view name, Macro macro);
         void define(Symbol symbol, Macro macro);
         void undefine(std::string_view name);
         void undefine(Symbol symbol);
         void inhibit() noexcept { this->suppress = true; }
+        void defer(const Token &token);
+        void schedule(const Token &token);
+
+        [[nodiscard]] Token lookahead(std::size_t offset = 0) const noexcept;
+        [[nodiscard]] std::optional<Macro> lookup(Symbol symbol) const noexcept;
+        [[nodiscard]] Handler primitive(Symbol symbol) const noexcept;
+        [[nodiscard]] std::optional<std::int32_t> integer(const semantics::Registers& registers, Symbol count);
+        [[nodiscard]] std::optional<std::int32_t> dimension(const semantics::Registers& registers, Symbol count, Symbol unit);
 
         [[nodiscard]] semantics::Union& state() const noexcept { return union_; }
         [[nodiscard]] Lexicon& lexicon() const noexcept { return lexicon_; }
@@ -72,6 +81,8 @@ namespace syntax {
         std::vector<Macro> macros{};
         std::vector<Record> records{};
         std::vector<std::size_t> marks{};
+        std::vector<std::vector<Token>> deferred{};
+        std::optional<Token> scheduled{};
         std::vector<Traceback> tracebacks_{};
 
         bool suppress = false;
