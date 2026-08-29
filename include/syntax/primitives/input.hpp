@@ -2,6 +2,6 @@
 
 #include "syntax/mouth.hpp"
 
-namespace syntax::primitives::definitions {
+namespace syntax::primitives::input {
     void ingest(Mouth& mouth);
 }

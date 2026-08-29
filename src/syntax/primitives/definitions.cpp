@@ -1,98 +1,104 @@
 #include "syntax/primitives/definitions.hpp"
+#include "logger.hpp"
+
+#include <span>
+#include <utility>
 
 namespace syntax::primitives::definitions {
 
-    namespace {
+    void ingest(Mouth& mouth) {
+        static auto define = [](Mouth& mouth, const bool expand, const bool global) {
+            const bool spanning = mouth.unlong();
+            const bool isolated = mouth.unouter();
+            const Token token = mouth.read();
 
-        Mouth::Macro capture(Mouth& mouth, const bool expanded) {
-            std::vector<Mouth::Parameter> parameters;
-            std::vector<Token> pattern;
+            if (token.category != CatCodes::Category::Escape && token.category != CatCodes::Category::Active) return;
+
+            std::vector<Mouth::Parameter> arguments;
+            std::vector<Token> pending;
 
             while (true) {
-                const Token token = mouth.read();
-                if (token.category == CatCodes::Category::Group && token.values == "{") break;
-                if (token.category == CatCodes::Category::Parameter) {
-                    const Token digit = mouth.read();
-                    pattern.push_back(digit);
-                    parameters.emplace_back();
+                const Token item = mouth.read();
+
+                if (item.category == CatCodes::Category::Group && item.values == "{") {
+                    if (!arguments.empty()) arguments.back().delimiters = std::move(pending);
+                    break;
+                }
+
+                if (item.category == CatCodes::Category::Parameter) {
+                    mouth.read();
+                    if (!arguments.empty()) arguments.back().delimiters = std::move(pending);
+                    pending.clear();
+                    arguments.emplace_back();
                     continue;
                 }
-                pattern.push_back(token);
+                pending.push_back(item);
             }
 
             std::vector<Token> body;
-            std::size_t depth = 1;
+            std::size_t depth = 1uz;
 
-            while (depth > 0) {
-                const Token token = expanded ? mouth.expand() : mouth.read();
-                if (token.values.empty()) break;
+            while (depth > 0uz) {
+                const Token item = expand ? mouth.expand() : mouth.read();
+                if (item.values.empty()) break;
 
-                if (token.category == CatCodes::Category::Group) {
-                    if (token.values == "{") depth++;
-                    else if (token.values == "}") {
+                if (item.category == CatCodes::Category::Group) {
+                    if (item.values == "{") depth++;
+                    else if (item.values == "}") {
                         depth--;
-                        if (depth == 0) break;
+                        if (depth == 0uz) break;
                     }
                 }
-                body.push_back(token);
+                body.push_back(item);
             }
 
             Mouth::Macro macro;
-            macro.parameters = std::move(parameters);
+            macro.parameters = std::move(arguments);
             macro.body = std::move(body);
-            return macro;
-        }
+            macro.spanning = spanning;
+            macro.isolated = isolated;
 
-        void assign(Mouth& mouth, const bool expanded, const bool global) {
-            const Token name = mouth.read();
-            if (name.category != CatCodes::Category::Escape) return;
-
-            Mouth::Macro macro = capture(mouth, expanded);
             if (global) mouth.globalize();
-            mouth.define(name.symbol, std::move(macro));
-        }
+            mouth.define(token.symbol, std::move(macro));
+        };
 
-        void alias(Mouth& mouth) {
-            const Token name = mouth.read();
+        mouth.bind("\\def", [](Mouth& mouth) { define(mouth, false, false); });
+        mouth.bind("\\edef", [](Mouth& mouth) { define(mouth, true, false); });
+        mouth.bind("\\gdef", [](Mouth& mouth) { define(mouth, false, true); });
+        mouth.bind("\\xdef", [](Mouth& mouth) { define(mouth, true, true); });
+
+        mouth.bind("\\let", [](Mouth& mouth) {
+            const Token token = mouth.read();
             Token equals = mouth.read();
             if (equals.values != "=") mouth.inject(std::span{&equals, 1});
 
             while (true) {
-                const Token space = mouth.read();
-                if (space.category != CatCodes::Category::Space) {
+                if (const Token space = mouth.read(); space.category != CatCodes::Category::Space) {
                     mouth.inject(std::span{&space, 1});
                     break;
                 }
             }
 
-            const Token target = mouth.read();
-            if (const auto meaning = mouth.lookup(target.symbol)) {
-                mouth.define(name.symbol, *meaning);
-            } else if (const Mouth::Handler routine = mouth.primitive(target.symbol)) {
-                mouth.bind(name.symbol, routine);
-            }
-        }
+            const Token reference = mouth.read();
+            if (const auto macro = mouth.lookup(reference.symbol)) mouth.define(token.symbol, *macro);
+            else if (const Mouth::Handler handler = mouth.primitive(reference.symbol)) mouth.bind(token.symbol, handler);
+        });
 
-        void anticipate(Mouth& mouth) {
-            const Token name = mouth.read();
-            const Token target = mouth.lookahead(1);
+        mouth.bind("\\futurelet", [](Mouth& mouth) {
+            const Token token = mouth.read();
+            const Token reference = mouth.lookahead(1);
 
-            if (const auto meaning = mouth.lookup(target.symbol)) {
-                mouth.define(name.symbol, *meaning);
-            } else if (const Mouth::Handler routine = mouth.primitive(target.symbol)) {
-                mouth.bind(name.symbol, routine);
-            }
-        }
+            if (const auto macro = mouth.lookup(reference.symbol)) mouth.define(token.symbol, *macro);
+            else if (const Mouth::Handler handler = mouth.primitive(reference.symbol)) mouth.bind(token.symbol, handler);
+        });
 
-    }
+        mouth.bind("\\undef", [](Mouth& mouth) {
+            mouth.undefine(mouth.read().symbol);
+        });
 
-    void ingest(Mouth& mouth) {
-        mouth.bind("\\def", [](Mouth& mouth) { assign(mouth, false, false); });
-        mouth.bind("\\edef", [](Mouth& mouth) { assign(mouth, true, false); });
-        mouth.bind("\\gdef", [](Mouth& mouth) { assign(mouth, false, true); });
-        mouth.bind("\\xdef", [](Mouth& mouth) { assign(mouth, true, true); });
-        mouth.bind("\\let", alias);
-        mouth.bind("\\futurelet", anticipate);
+        mouth.bind("\\global", [](Mouth& mouth) { mouth.globalize(); });
+        mouth.bind("\\long", [](Mouth& mouth) { mouth.longify(); });
+        mouth.bind("\\outer", [](Mouth& mouth) { mouth.outerize(); });
     }
 
 }

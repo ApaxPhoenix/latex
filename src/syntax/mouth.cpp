@@ -1,6 +1,7 @@
 #include "syntax/mouth.hpp"
 #include "syntax/lexer.hpp"
 #include "syntax/number.hpp"
+#include "semantics/union.hpp"
 #include "memory/location.hpp"
 #include "logger.hpp"
 
@@ -10,13 +11,35 @@
 
 namespace syntax {
 
-    Mouth::Mouth(Cursor cursor, semantics::Union& state, Lexicon& lexicon, memory::Arena& arena)
-        : cursor(std::move(cursor)), union_(state), lexicon_(lexicon), arena(arena) {}
+    static std::optional<std::size_t> probe(const Cursor& cursor, const std::vector<Token>& delimiters) noexcept {
+        std::size_t offset = 0;
+
+        for (const Token& want : delimiters) {
+            if (want.category == CatCodes::Category::Space) {
+                while (cursor.lookahead(offset).category == CatCodes::Category::Space) {
+                    offset++;
+                }
+                continue;
+            }
+
+            if (const Token got = cursor.lookahead(offset); got.values.empty() || got.symbol != want.symbol) {
+                return std::nullopt;
+            }
+            offset++;
+        }
+
+        return offset;
+    }
+
+    Mouth::Mouth(Cursor input_cursor, semantics::Union& state, Lexicon& lexicon, memory::Arena& arena)
+        : cursor(std::move(input_cursor)), state_(state), lexicon_(lexicon), arena_(arena) {
+        this->paragraph = this->lexicon_.intern("\\par");
+    }
 
     void Mouth::push() {
         this->marks.push_back(this->records.size());
         this->deferred.emplace_back();
-        this->union_.push();
+        this->state_.push();
         Logger::fmt(Logger::Type::Mouth, Logger::Level::Debug, "State push (depth={})", this->marks.size());
     }
 
@@ -25,33 +48,71 @@ namespace syntax {
             const memory::Location location = this->cursor.empty() ? memory::Location{} : this->cursor.lookahead(0).location;
             const std::string message = "Dangling scope pop boundary constraint violation";
             Logger::fmt(Logger::Type::Mouth, Logger::Level::Error, "Scope pop failure at {}:{}", location.line, location.column);
-            this->tracebacks_.emplace_back(Traceback::Type::Scope, location, message);
+            this->history_.emplace_back(Traceback::Type::Scope, location, message);
             return;
         }
 
-        this->union_.pop();
+        this->state_.pop();
 
         const std::size_t mark = this->marks.back();
         this->marks.pop_back();
 
         for (std::size_t count = this->records.size(); count > mark; --count) {
-            auto [symbol_, macros_, active_] = std::move(this->records.back());
+            Record record = std::move(this->records.back());
             this->records.pop_back();
-            if (symbol_ < this->macros.size()) {
-                this->macros[symbol_] = std::move(macros_);
-                this->macros[symbol_].active = active_;
+            if (record.symbol < this->macros.size()) {
+                this->macros[record.symbol] = std::move(record.macro);
+                this->macros[record.symbol].active = record.active;
             }
         }
 
         if (!this->deferred.empty()) {
             std::vector<Token> pending = std::move(this->deferred.back());
             this->deferred.pop_back();
-            if (!pending.empty()) this->inject(pending);
+            if (!pending.empty()) {
+                this->inject(pending);
+            }
         }
     }
 
     void Mouth::globalize() noexcept {
-        this->global = true;
+        this->global = 1;
+    }
+
+    int Mouth::unglobal() noexcept {
+        const int flag = this->global;
+        this->global = 0;
+        return flag;
+    }
+
+    void Mouth::longify() noexcept {
+        this->spanning = 1;
+    }
+
+    int Mouth::unlong() noexcept {
+        const int flag = this->spanning;
+        this->spanning = 0;
+        return flag;
+    }
+
+    void Mouth::outerize() noexcept {
+        this->isolated = 1;
+    }
+
+    int Mouth::unouter() noexcept {
+        const int flag = this->isolated;
+        this->isolated = 0;
+        return flag;
+    }
+
+    void Mouth::defer(const Token& token) {
+        if (!this->deferred.empty()) {
+            this->deferred.back().push_back(token);
+        }
+    }
+
+    void Mouth::schedule(const Token& token) {
+        this->scheduled = token;
     }
 
     Token Mouth::read() noexcept {
@@ -66,21 +127,21 @@ namespace syntax {
         return {};
     }
 
-    bool Mouth::step() {
-        if (this->cursor.empty()) return false;
+    int Mouth::step() {
+        if (this->cursor.empty()) return 0;
 
         const Token token = this->cursor.lookahead(0);
-        if (token.symbol == kInvalidSymbol) return false;
+        if (token.symbol == kInvalidSymbol) return 0;
 
-        if (this->suppress) {
-            this->suppress = false;
-            return false;
+        if (this->suppressed) {
+            this->suppressed = 0;
+            return 0;
         }
 
-        if (token.symbol < this->handler.size() && this->handler[token.symbol]) {
+        if (token.symbol < this->handlers.size() && this->handlers[token.symbol]) {
             this->cursor.advance();
-            this->handler[token.symbol](*this);
-            return true;
+            this->handlers[token.symbol](*this);
+            return 1;
         }
 
         if (token.symbol < this->macros.size() && this->macros[token.symbol].active) {
@@ -89,8 +150,8 @@ namespace syntax {
             if (this->depth >= this->limit) {
                 const std::string message = std::format("Macro recursion threshold {} exceeded", this->limit);
                 Logger::fmt(Logger::Type::Mouth, Logger::Level::Error, "Recursion limit hit at {}:{}", token.location.line, token.location.column);
-                this->tracebacks_.emplace_back(Traceback::Type::Recursion, token.location, message);
-                return false;
+                this->history_.emplace_back(Traceback::Type::Recursion, token.location, message);
+                return 0;
             }
             this->depth++;
 
@@ -98,7 +159,7 @@ namespace syntax {
             std::vector<std::vector<Token>> arguments;
             arguments.reserve(macro.parameters.size());
             for (const auto& parameter : macro.parameters) {
-                arguments.push_back(this->argument(parameter));
+                arguments.push_back(this->argument(parameter, macro.spanning));
             }
 
             std::vector<Token> output;
@@ -124,25 +185,45 @@ namespace syntax {
 
             this->cursor.inject(output);
             this->depth--;
-            return true;
+            return 1;
         }
 
-        return false;
+        return 0;
     }
 
-    std::vector<Token> Mouth::argument(const Parameter& parameter) {
+    std::vector<Token> Mouth::argument(const Parameter& parameter, const int allow) {
         std::vector<Token> result;
         if (this->cursor.empty()) return result;
 
+        const auto forbidden = [&](const Token& token) -> int {
+            if (token.symbol == this->paragraph && !allow) {
+                const std::string message = "Paragraph break inside argument of a macro that isn't \\long";
+                Logger::log(Logger::Type::Mouth, Logger::Level::Warning, message);
+                this->history_.emplace_back(Traceback::Type::Argument, token.location, message);
+                return 1;
+            }
+            if (const auto slot = static_cast<std::size_t>(token.symbol); slot < this->macros.size() && this->macros[slot].active && this->macros[slot].isolated) {
+                const std::string message = std::format("\\outer macro {} may not appear inside an argument", token.values);
+                Logger::log(Logger::Type::Mouth, Logger::Level::Warning, message);
+                this->history_.emplace_back(Traceback::Type::Argument, token.location, message);
+                return 1;
+            }
+            return 0;
+        };
+
         if (parameter.optional) {
-            if (const Token lead = this->cursor.lookahead(0); lead.category == CatCodes::Category::Other && lead.values == "[") {
+            const Token lead = this->cursor.lookahead(0);
+            if (lead.category == CatCodes::Category::Other && lead.values == "[") {
                 this->cursor.advance();
                 std::size_t scope = 1;
                 while (!this->cursor.empty() && scope > 0) {
                     Token token = this->cursor.advance();
                     if (token.values == "[") scope++;
                     else if (token.values == "]") scope--;
-                    if (scope > 0) result.push_back(token);
+                    if (scope > 0) {
+                        if (forbidden(token)) break;
+                        result.push_back(token);
+                    }
                 }
             } else {
                 result = parameter.fallbacks;
@@ -150,21 +231,12 @@ namespace syntax {
         } else if (!parameter.delimiters.empty()) {
             std::size_t scope = 0;
             bool matched = false;
-            const std::size_t count = parameter.delimiters.size();
 
             while (!this->cursor.empty()) {
                 if (scope == 0) {
-                    bool found = true;
-                    for (std::size_t index = 0; index < count; ++index) {
-                        if (this->cursor.lookahead(index).symbol != parameter.delimiters[index].symbol) {
-                            found = false;
-                            break;
-                        }
-                    }
-
-                    if (found) {
+                    if (const auto span = probe(this->cursor, parameter.delimiters)) {
                         matched = true;
-                        for (std::size_t index = 0; index < count; ++index) {
+                        for (std::size_t count = 0; count < *span; ++count) {
                             this->cursor.advance();
                         }
                         break;
@@ -172,6 +244,8 @@ namespace syntax {
                 }
 
                 Token token = this->cursor.advance();
+                if (forbidden(token)) break;
+
                 if (token.category == CatCodes::Category::Group) {
                     if (token.values == "{") scope++;
                     else if (token.values == "}" && scope > 0) scope--;
@@ -183,7 +257,7 @@ namespace syntax {
                 const memory::Location location = this->cursor.empty() ? memory::Location{} : this->cursor.lookahead(0).location;
                 const std::string message = "Delimited macro expansion missing parameter bounding tokens";
                 Logger::log(Logger::Type::Mouth, Logger::Level::Warning, message);
-                this->tracebacks_.emplace_back(Traceback::Type::Delimiter, location, message);
+                this->history_.emplace_back(Traceback::Type::Delimiter, location, message);
             }
         } else {
             while (!this->cursor.empty() && this->cursor.lookahead(0).category == CatCodes::Category::Space) {
@@ -198,17 +272,20 @@ namespace syntax {
                         if (element.values == "{") scope++;
                         else if (element.values == "}") scope--;
                     }
-                    if (scope > 0) result.push_back(element);
+                    if (scope > 0) {
+                        if (forbidden(element)) break;
+                        result.push_back(element);
+                    }
                 }
                 if (scope > 0) {
                     const std::string message = "Macro argument block truncation missing trailing brace";
                     Logger::log(Logger::Type::Mouth, Logger::Level::Warning, message);
-                    this->tracebacks_.emplace_back(Traceback::Type::Group, token.location, message);
+                    this->history_.emplace_back(Traceback::Type::Group, token.location, message);
                 }
-            } else {
-                if (token.symbol != kInvalidSymbol || !token.values.empty()) {
-                    result.push_back(token);
-                }
+            } else if (forbidden(token)) {
+                this->inject(std::span{&token, 1});
+            } else if (token.symbol != kInvalidSymbol || !token.values.empty()) {
+                result.push_back(token);
             }
         }
         return result;
@@ -219,7 +296,7 @@ namespace syntax {
     }
 
     void Mouth::ingest(const std::string_view source) {
-        Lexer lexer(source, this->union_.catcodes(), this->lexicon_);
+        Lexer lexer(source, this->state_.catcodes(), this->lexicon_);
         std::vector<Token> tokens;
         tokens.reserve(source.size() / 2);
 
@@ -238,10 +315,10 @@ namespace syntax {
 
     void Mouth::bind(const Symbol symbol, Handler handler) {
         const auto needed = static_cast<std::size_t>(symbol) + 1;
-        if (symbol >= this->handler.size()) {
-            this->handler.resize(std::max<std::size_t>(needed, this->handler.size() * 2));
+        if (symbol >= this->handlers.size()) {
+            this->handlers.resize(std::max<std::size_t>(needed, this->handlers.size() * 2));
         }
-        this->handler[symbol] = std::move(handler);
+        this->handlers[symbol] = std::move(handler);
     }
 
     void Mouth::define(const std::string_view name, Macro macro) {
@@ -250,11 +327,12 @@ namespace syntax {
 
     void Mouth::define(const Symbol symbol, Macro macro) {
         const auto slot = static_cast<std::size_t>(symbol);
+        const int is_global = this->unglobal();
 
-        if (!this->global && !this->marks.empty()) {
-            const bool active = slot < this->macros.size() && this->macros[slot].active;
-            const Macro previous = active ? this->macros[slot] : Macro{};
-            this->records.push_back(Record{symbol, previous, active});
+        if (!is_global && !this->marks.empty()) {
+            const bool is_active = slot < this->macros.size() && this->macros[slot].active;
+            const Macro previous = is_active ? this->macros[slot] : Macro{};
+            this->records.push_back(Record{symbol, previous, is_active});
         }
 
         if (slot >= this->macros.size()) {
@@ -262,7 +340,6 @@ namespace syntax {
         }
         macro.active = true;
         this->macros[slot] = std::move(macro);
-        this->global = false;
 
         if (this->scheduled) {
             const Token pending = *this->scheduled;
@@ -276,13 +353,13 @@ namespace syntax {
     }
 
     void Mouth::undefine(const Symbol symbol) {
+        const int is_global = this->unglobal();
         if (const auto slot = static_cast<std::size_t>(symbol); slot < this->macros.size() && this->macros[slot].active) {
-            if (!this->global && !this->marks.empty()) {
+            if (!is_global && !this->marks.empty()) {
                 this->records.push_back(Record{symbol, this->macros[slot], true});
             }
             this->macros[slot].active = false;
         }
-        this->global = false;
 
         if (this->scheduled) {
             const Token pending = *this->scheduled;
@@ -290,31 +367,23 @@ namespace syntax {
             this->inject(std::span{&pending, 1});
         }
     }
-    
-    void Mouth::defer(const Token &token) {
-        if (!this->deferred.empty()) {
-            this->deferred.back().push_back(token);
-        }
-    }
-    
-    void Mouth::schedule(const Token &token) {
-        this->scheduled = token;
-    }
-    
+
     Token Mouth::lookahead(const std::size_t offset) const noexcept {
         return this->cursor.lookahead(offset);
     }
 
     std::optional<Mouth::Macro> Mouth::lookup(const Symbol symbol) const noexcept {
-        if (const auto slot = static_cast<std::size_t>(symbol); slot < this->macros.size() && this->macros[slot].active) {
+        const auto slot = static_cast<std::size_t>(symbol);
+        if (slot < this->macros.size() && this->macros[slot].active) {
             return this->macros[slot];
         }
         return std::nullopt;
     }
 
     Mouth::Handler Mouth::primitive(const Symbol symbol) const noexcept {
-        if (const auto slot = static_cast<std::size_t>(symbol); slot < this->handler.size()) {
-            return this->handler[slot];
+        const auto slot = static_cast<std::size_t>(symbol);
+        if (slot < this->handlers.size()) {
+            return this->handlers[slot];
         }
         return {};
     }

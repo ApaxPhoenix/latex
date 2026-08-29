@@ -1,41 +1,11 @@
 #include "syntax/lexer.hpp"
+#include "syntax/cache.hpp"
 #include "logger.hpp"
 
 #include <algorithm>
-#include <array>
 #include <utility>
 
 namespace syntax {
-
-    namespace {
-        struct Cache {
-            const Lexicon* lexicon = nullptr;
-            std::array<std::pair<Symbol, std::string_view>, 256> entries{};
-
-            Cache() {
-                entries.fill({kInvalidSymbol, {}});
-            }
-        };
-
-        thread_local Cache cache;
-
-        std::pair<Symbol, std::string_view> entry(Lexicon& lexicon, const std::string_view slice) {
-            if (slice.size() == 1) {
-                const auto index = static_cast<unsigned char>(slice[0]);
-                if (cache.lexicon != &lexicon) {
-                    cache.lexicon = &lexicon;
-                    cache.entries.fill({kInvalidSymbol, {}});
-                }
-                if (cache.entries[index].first == kInvalidSymbol) {
-                    const Symbol bound = lexicon.intern(slice);
-                    cache.entries[index] = {bound, lexicon.resolve(bound)};
-                }
-                return cache.entries[index];
-            }
-            const Symbol bound = lexicon.intern(slice);
-            return {bound, lexicon.resolve(bound)};
-        }
-    }
 
     Lexer::Lexer(const std::string_view source, CatCodes& table, Lexicon& lexicon)
         : sources(source), table(table), lexicon(lexicon) {
@@ -115,7 +85,7 @@ namespace syntax {
                 return Token{bound, CatCodes::Category::Escape, position, value};
             }
 
-            const std::size_t span = ((static_cast<unsigned char>(symbol) & 0x80) == 0) ? 1 : std::min(length(symbol), size - offset);
+            const std::size_t span = (static_cast<unsigned char>(symbol) & 0x80) == 0 ? 1 : std::min(length(symbol), size - offset);
             offset += span;
             location.column++;
             type = Type::Middle;
