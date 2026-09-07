@@ -8,10 +8,11 @@ namespace render::typography {
     Expression::Expression(const Font& font) noexcept : parent(font) {}
 
     Expression::Metric Expression::metrics() const noexcept {
+        if (ready) return cache;
         if (!parent.hb()) return {};
 
         hb_font_t* handle = parent.hb();
-        return Metric{
+        cache = Metric{
             .axis = static_cast<float>(hb_ot_math_get_constant(handle, HB_OT_MATH_CONSTANT_AXIS_HEIGHT)),
             .fraction = static_cast<float>(hb_ot_math_get_constant(handle, HB_OT_MATH_CONSTANT_FRACTION_NUMERATOR_DISPLAY_STYLE_SHIFT_UP)),
             .radical = static_cast<float>(hb_ot_math_get_constant(handle, HB_OT_MATH_CONSTANT_RADICAL_VERTICAL_GAP)),
@@ -19,6 +20,8 @@ namespace render::typography {
             .superscript = static_cast<float>(hb_ot_math_get_constant(handle, HB_OT_MATH_CONSTANT_SUPERSCRIPT_SHIFT_UP)),
             .limit = static_cast<float>(hb_ot_math_get_constant(handle, HB_OT_MATH_CONSTANT_UPPER_LIMIT_GAP_MIN))
         };
+        ready = true;
+        return cache;
     }
 
     std::uint32_t Expression::glyph(const std::uint32_t code) const noexcept {

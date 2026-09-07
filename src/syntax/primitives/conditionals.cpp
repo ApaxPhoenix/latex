@@ -1,6 +1,11 @@
 #include "syntax/primitives/conditionals.hpp"
+#include "logger.hpp"
 
 namespace syntax::primitives::conditionals {
+
+    namespace {
+        constexpr std::size_t limit = 1'000'000uz;
+    }
 
     Gate::Gate(Lexicon& lexicon) noexcept {
         finish = lexicon.intern("\\fi");
@@ -23,7 +28,14 @@ namespace syntax::primitives::conditionals {
 
     void Gate::skip(Mouth& mouth) const noexcept {
         std::size_t depth = 0uz;
+        std::size_t count = 0uz;
+
         while (true) {
+            if (++count > limit) {
+                Logger::log(Logger::Type::Semantics, Logger::Level::Error, "Conditional skip exceeded scan limit");
+                return;
+            }
+
             const Token token = mouth.read();
             if (token.values.empty()) return;
 
@@ -42,7 +54,14 @@ namespace syntax::primitives::conditionals {
 
     void Gate::drop(Mouth& mouth) const noexcept {
         std::size_t depth = 0uz;
+        std::size_t count = 0uz;
+
         while (true) {
+            if (++count > limit) {
+                Logger::log(Logger::Type::Semantics, Logger::Level::Error, "Conditional drop exceeded scan limit");
+                return;
+            }
+
             const Token token = mouth.read();
             if (token.values.empty()) return;
 
@@ -108,7 +127,13 @@ namespace syntax::primitives::conditionals {
 
         mouth.bind("\\ifcsname", [this](Mouth& mouth) {
             std::string content;
+            std::size_t count = 0uz;
+
             while (true) {
+                if (++count > limit) {
+                    Logger::log(Logger::Type::Semantics, Logger::Level::Error, "\\ifcsname exceeded scan limit");
+                    break;
+                }
                 const Token token = mouth.expand();
                 if (token.symbol == terminate || token.values.empty()) break;
                 content += token.values;
@@ -158,7 +183,14 @@ namespace syntax::primitives::conditionals {
             }
 
             std::size_t depth = 0uz;
+            std::size_t count = 0uz;
+
             while (remaining > 0) {
+                if (++count > limit) {
+                    Logger::log(Logger::Type::Semantics, Logger::Level::Error, "\\ifcase exceeded scan limit");
+                    return;
+                }
+
                 const Token token = mouth.read();
                 if (token.values.empty()) return;
 

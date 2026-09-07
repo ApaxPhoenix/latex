@@ -13,7 +13,11 @@ namespace render::typography {
     Font::Font(Font&& input) noexcept
         : parent(std::exchange(input.parent, nullptr)),
           handle(std::exchange(input.handle, nullptr)),
-          points(std::exchange(input.points, 0.0f)) {}
+          points(std::exchange(input.points, 0.0f)),
+          ascent(std::exchange(input.ascent, 0.0f)),
+          descent(std::exchange(input.descent, 0.0f)),
+          gap(std::exchange(input.gap, 0.0f)),
+          cache(std::exchange(input.cache, {})) {}
 
     Font& Font::operator=(Font&& input) noexcept {
         if (this != &input) {
@@ -21,6 +25,10 @@ namespace render::typography {
             parent = std::exchange(input.parent, nullptr);
             handle = std::exchange(input.handle, nullptr);
             points = std::exchange(input.points, 0.0f);
+            ascent = std::exchange(input.ascent, 0.0f);
+            descent = std::exchange(input.descent, 0.0f);
+            gap = std::exchange(input.gap, 0.0f);
+            cache = std::exchange(input.cache, {});
         }
         return *this;
     }
@@ -42,6 +50,13 @@ namespace render::typography {
         hb_font_set_scale(handle, scale, scale);
         hb_ot_font_set_funcs(handle);
 
+        hb_font_extents_t extents{};
+        if (hb_font_get_h_extents(handle, &extents)) {
+            ascent = static_cast<float>(extents.ascender);
+            descent = static_cast<float>(extents.descender);
+            gap = static_cast<float>(extents.line_gap);
+        }
+
         parent = &face;
         points = size;
         return true;
@@ -54,38 +69,42 @@ namespace render::typography {
         }
         parent = nullptr;
         points = 0.0f;
+        ascent = 0.0f;
+        descent = 0.0f;
+        gap = 0.0f;
+        cache = {};
     }
 
     Font::Metric Font::metrics(const float scale) const noexcept {
         if (!handle || scale == 0.0f) return {};
-        hb_font_extents_t extents{};
-        if (hb_font_get_h_extents(handle, &extents)) {
-            const float ratio = 1.0f / scale;
-            return Metric{
-                .ascent = static_cast<float>(extents.ascender) * ratio,
-                .descent = static_cast<float>(extents.descender) * ratio,
-                .gap = static_cast<float>(extents.line_gap) * ratio,
-                .height = static_cast<float>(extents.ascender - extents.descender) * ratio,
-                .units = static_cast<float>(parent ? parent->units() : 0),
-                .size = points
-            };
-        }
-        return {};
+        const float ratio = 1.0f / scale;
+        return Metric{
+            .ascent = ascent * ratio,
+            .descent = descent * ratio,
+            .gap = gap * ratio,
+            .height = (ascent - descent) * ratio,
+            .units = static_cast<float>(parent ? parent->units() : 0),
+            .size = points
+        };
     }
 
     Font::Box Font::bounds(const std::uint32_t glyph, const float scale) const noexcept {
         if (!handle || scale == 0.0f) return {};
-        hb_glyph_extents_t extents{};
-        if (hb_font_get_glyph_extents(handle, glyph, &extents)) {
-            const float ratio = 1.0f / scale;
-            return Box{
-                .x = static_cast<float>(extents.x_bearing) * ratio,
-                .y = static_cast<float>(extents.y_bearing) * ratio,
-                .width = static_cast<float>(extents.width) * ratio,
-                .height = static_cast<float>(extents.height) * ratio
-            };
+
+        Slot& slot = cache[glyph & mask];
+        if (!slot.ready || slot.glyph != glyph) {
+            hb_glyph_extents_t extents{};
+            if (!hb_font_get_glyph_extents(handle, glyph, &extents)) return {};
+            slot = Slot{.glyph = glyph, .ready = true, .extents = extents};
         }
-        return {};
+
+        const float ratio = 1.0f / scale;
+        return Box{
+            .x = static_cast<float>(slot.extents.x_bearing) * ratio,
+            .y = static_cast<float>(slot.extents.y_bearing) * ratio,
+            .width = static_cast<float>(slot.extents.width) * ratio,
+            .height = static_cast<float>(slot.extents.height) * ratio
+        };
     }
 
 }

@@ -31,6 +31,8 @@ namespace render::typography {
 
     private:
         const Font& parent;
+        mutable Metric cache{};
+        mutable bool ready{false};
     };
 
 }

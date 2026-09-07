@@ -2,28 +2,58 @@
 #include "syntax/primitives/board.hpp"
 #include "syntax/semantics/union.hpp"
 #include "syntax/lexer.hpp"
+#include "logger.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdio>
+#include <filesystem>
 #include <memory>
 #include <span>
 #include <string>
 
 namespace syntax::primitives::streams {
 
+    namespace {
+
+        bool confined(const std::string_view path) {
+            namespace filesystem = std::filesystem;
+
+            std::error_code error;
+            const filesystem::path root = filesystem::current_path(error);
+            if (error) return false;
+
+            const filesystem::path target = filesystem::weakly_canonical(root / filesystem::path(path), error);
+            if (error) return false;
+
+            const auto inside = std::mismatch(root.begin(), root.end(), target.begin(), target.end()).first == root.end();
+
+            if (!inside) {
+                Logger::fmt(Logger::Type::Semantics, Logger::Level::Warning,
+                            "Blocked filesystem access outside sandbox root: {}", path);
+            }
+            return inside;
+        }
+
+    }
+
     void ingest(Mouth& mouth, semantics::Registers& registers, const conditionals::Gate& gate) {
         const Symbol identifier = mouth.lexicon().intern("\\count");
 
         static auto allocate = [](Mouth& mouth, const semantics::Registers& registers, const Symbol identifier) -> std::size_t {
-            if (const auto value = mouth.integer(registers, identifier)) return static_cast<std::size_t>(*value);
-            return 0uz;
+            const auto value = mouth.integer(registers, identifier);
+            if (!value || *value < 0) return 0uz;
+            return static_cast<std::size_t>(*value);
         };
 
         mouth.bind("\\openin", [&registers, identifier](Mouth& mouth) {
             const std::size_t index = allocate(mouth, registers, identifier);
             Token equals = mouth.read();
             if (equals.values != "=") mouth.inject(std::span{&equals, 1});
-            board().reader.open(index, mouth.read().values);
+
+            const Token filename = mouth.read();
+            if (!confined(filename.values)) return;
+            board().reader.open(index, filename.values);
         });
 
         mouth.bind("\\closein", [&registers, identifier](Mouth& mouth) {
@@ -60,7 +90,10 @@ namespace syntax::primitives::streams {
             const std::size_t index = allocate(mouth, registers, identifier);
             Token equals = mouth.read();
             if (equals.values != "=") mouth.inject(std::span{&equals, 1});
-            board().writer.open(index, mouth.read().values);
+
+            const Token filename = mouth.read();
+            if (!confined(filename.values)) return;
+            board().writer.open(index, filename.values);
         });
 
         mouth.bind("\\closeout", [&registers, identifier](Mouth& mouth) {

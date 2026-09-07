@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "configurePresets": [
+    {
+      "name": "windows-msvc",
+      "generator": "Ninja",
+      "toolchainFile": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+    }
+  ]
+}

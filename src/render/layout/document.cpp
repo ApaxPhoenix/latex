@@ -114,4 +114,8 @@ namespace render::layout {
         return config;
     }
 
+    Document::Configuration& Document::configuration() noexcept {
+        return config;
+    }
+
 }

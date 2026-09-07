@@ -3,6 +3,7 @@
 #include "typography/face.hpp"
 
 #include <harfbuzz/hb.h>
+#include <array>
 #include <cstdint>
 
 namespace render::typography {
@@ -44,9 +45,23 @@ namespace render::typography {
         [[nodiscard]] float size() const noexcept { return points; }
 
     private:
+        struct Slot {
+            std::uint32_t glyph{0};
+            bool ready{false};
+            hb_glyph_extents_t extents{};
+        };
+
+        static constexpr std::size_t mask = 0xFF;
+
         const Face* parent{nullptr};
         hb_font_t* handle{nullptr};
         float points{0.0f};
+
+        float ascent{0.0f};
+        float descent{0.0f};
+        float gap{0.0f};
+
+        mutable std::array<Slot, mask + 1> cache{};
     };
 
 }

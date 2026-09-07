@@ -67,6 +67,7 @@ namespace render::layout {
         [[nodiscard]] memory::Slice<Element*> elements() const noexcept;
         [[nodiscard]] memory::Slice<Paragraph*> paragraphs() const noexcept;
         [[nodiscard]] const Configuration& configuration() const noexcept;
+        [[nodiscard]] Configuration& configuration() noexcept;
 
     private:
         memory::Arena& arena;

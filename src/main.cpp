@@ -4,14 +4,24 @@
 #include "memory/arena.hpp"
 #include "render/composer.hpp"
 #include "render/pdf.hpp"
+#include "render/primitives/boxes.hpp"
+#include "render/primitives/document.hpp"
+#include "render/primitives/expression.hpp"
+#include "render/primitives/fonts.hpp"
+#include "render/primitives/glue.hpp"
+#include "render/primitives/penalties.hpp"
+#include "render/primitives/rules.hpp"
 #include "syntax/cursor.hpp"
-#include "syntax/expression/node.hpp"
-#include "syntax/expression/parser.hpp"
 #include "syntax/expression/unicodes.hpp"
 #include "syntax/lexicon.hpp"
 #include "syntax/mouth.hpp"
 #include "syntax/node.hpp"
 #include "syntax/parser.hpp"
+#include "syntax/primitives/characters.hpp"
+#include "syntax/primitives/conditionals.hpp"
+#include "syntax/primitives/definitions.hpp"
+#include "syntax/primitives/grouping.hpp"
+#include "syntax/primitives/registers.hpp"
 #include "syntax/semantics/union.hpp"
 #include "syntax/tokens.hpp"
 #include "syntax/traceback.hpp"
@@ -143,25 +153,21 @@ int main(int count, char* arguments[]) {
 
     syntax::Parser parser(mouth, arena);
 
-    parser.bind("\\[", [&](const syntax::Parser& instance) -> syntax::Node* {
-        syntax::expression::Parser expression(
-            instance.mouth(),
-            unicodes,
-            instance.arena(),
-            syntax::expression::Node::Style::Display
-        );
-        syntax::expression::Node* tree = expression.parse();
+    render::primitives::fonts::Selection selection;
+    selection.font(font);
 
-        auto children = instance.arena().allocate<syntax::Node*>(1);
-        children[0] = reinterpret_cast<syntax::Node*>(tree);
-
-        return instance.arena().compose<syntax::Node>(
-            syntax::Node::Type::Expression,
-            std::string_view{},
-            memory::Location{},
-            children
-        );
-    });
+    render::primitives::document::ingest(mouth, composer.document(), state.registers());
+    syntax::primitives::registers::ingest(mouth, state.registers());
+    syntax::primitives::grouping::ingest(mouth);
+    render::primitives::fonts::ingest(mouth, state.registers(), registry, options, scratch, selection);
+    render::primitives::boxes::ingest(parser, state.registers(), shaper, typesetter, selection);
+    render::primitives::glue::ingest(parser, state.registers());
+    render::primitives::rules::ingest(parser, state.registers());
+    render::primitives::penalties::ingest(parser, state.registers());
+    render::primitives::expression::ingest(parser, unicodes);
+    syntax::primitives::characters::ingest(mouth, state.registers());
+    syntax::primitives::conditionals::Gate{lexicon}.ingest(mouth, state.registers());
+    syntax::primitives::definitions::ingest(mouth);
 
     const memory::Slice<syntax::Node*> outputs = parser.parse();
     const auto step = std::chrono::high_resolution_clock::now();
@@ -170,9 +176,8 @@ int main(int count, char* arguments[]) {
         const syntax::Node* node = outputs[index];
         if (!node) continue;
 
-        if (node->type == syntax::Node::Type::Expression && node->nodes.count > 0) {
-            const auto* math = reinterpret_cast<const syntax::expression::Node*>(node->nodes[0]);
-            composer.document().append(math, *font);
+        if (node->type == syntax::Node::Type::Expression && node->expression) {
+            composer.document().append(node->expression, *font);
         } else if (node->type == syntax::Node::Type::Text || node->type == syntax::Node::Type::Paragraph) {
             if (!node->value.empty()) {
                 composer.document().append(node->value, *font, 12.0f);

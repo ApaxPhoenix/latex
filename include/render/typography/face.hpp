@@ -1,8 +1,8 @@
 #pragma once
 
+#include <harfbuzz/hb.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
-#include <harfbuzz/hb.h>
 
 #include <cstdint>
 #include <mutex>
@@ -20,7 +20,7 @@ namespace render::typography {
             ~Instance() noexcept;
         };
 
-        static thread_local Instance instance;
+        static thread_local Instance core;
 
         Face() noexcept = default;
         ~Face() noexcept;
@@ -30,23 +30,24 @@ namespace render::typography {
         Face(Face&& input) noexcept;
         Face& operator=(Face&& input) noexcept;
 
-        [[nodiscard]] bool compose(std::string_view path) noexcept;
-        [[nodiscard]] bool compose(std::span<const std::uint8_t> bytes) noexcept;
         void dispose() noexcept;
+        [[nodiscard]] bool compose(std::string_view path) noexcept;
+        [[nodiscard]] bool compose(std::span<const std::uint8_t> data) noexcept;
 
-        [[nodiscard]] FT_Face ft() const noexcept { return native; }
         [[nodiscard]] hb_face_t* hb() const noexcept { return handle; }
+        [[nodiscard]] FT_Face ft() const noexcept { return native; }
         [[nodiscard]] std::uint32_t units() const noexcept { return scale; }
-        [[nodiscard]] std::span<const std::uint8_t> data() const noexcept { return storage; }
+        [[nodiscard]] const std::vector<std::uint8_t>& data() const noexcept { return storage; }
 
     private:
-        [[nodiscard]] bool load(std::vector<std::uint8_t> bytes) noexcept;
+        [[nodiscard]] bool load(std::vector<std::uint8_t> data) noexcept;
 
         FT_Face native{nullptr};
         hb_face_t* handle{nullptr};
         std::uint32_t scale{0};
+
+        std::mutex mutex{};
         std::vector<std::uint8_t> storage{};
-        mutable std::mutex mutex{};
     };
 
 }

@@ -6,45 +6,48 @@
 #include <include/docs/SkPDFDocument.h>
 #include <include/docs/SkPDFJpegHelpers.h>
 
+#include <cstdio>
 #include <string>
 
 namespace render {
 
-    bool Pdf::compose(Composer& composer, const float width, const float height, const std::string_view path) {
+    bool Pdf::compose(Composer& writer, const float width, const float height, const std::string_view path) {
         if (path.empty() || width <= 0.0f || height <= 0.0f) return false;
 
-        composer.document().layout();
+        writer.document().layout();
 
-        const auto pages = composer.typesetter().compose(composer.document());
+        const auto& pages = writer.engine().compose(writer.document());
         if (pages.empty()) return false;
 
-        const std::string name(path);
-        SkFILEWStream stream(name.c_str());
-        if (!stream.isValid()) return false;
+        SkDynamicMemoryWStream stream;
+        SkPDF::Metadata data{};
+        data.fTitle = SkString("Document");
+        data.jpegDecoder = SkPDF::JPEG::Decode;
+        data.jpegEncoder = SkPDF::JPEG::Encode;
 
-        SkPDF::Metadata metadata{};
-        metadata.fTitle = SkString("Document");
-        metadata.jpegDecoder = SkPDF::JPEG::Decode;
-        metadata.jpegEncoder = SkPDF::JPEG::Encode;
-
-        const auto document = SkPDF::MakeDocument(&stream, metadata);
-        if (!document) return false;
+        const auto pdf = SkPDF::MakeDocument(&stream, data);
+        if (!pdf) return false;
 
         for (const auto& page : pages) {
-            SkCanvas* canvas = document->beginPage(width, height);
-            if (!canvas) continue;
-
-            composer.canvas(canvas);
-            composer.draw(page.nodes, 0.0f, 0.0f);
-
-            document->endPage();
+            if (SkCanvas* board = pdf->beginPage(width, height)) {
+                writer.target(board);
+                writer.draw(page.nodes, 0.0f, 0.0f);
+                pdf->endPage();
+            }
         }
 
-        document->close();
-        stream.flush();
+        pdf->close();
+        writer.target(nullptr);
 
-        composer.canvas(nullptr);
-        return true;
+        const std::string name(path);
+        if (FILE* file = std::fopen(name.c_str(), "wb")) {
+            sk_sp<SkData> bytes = stream.detachAsData();
+            std::fwrite(bytes->data(), 1, bytes->size(), file);
+            std::fclose(file);
+            return true;
+        }
+
+        return false;
     }
 
 }

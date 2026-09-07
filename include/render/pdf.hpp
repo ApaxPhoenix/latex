@@ -8,7 +8,7 @@ namespace render {
     class Pdf {
     public:
         static bool compose(
-            Composer& composer,
+            Composer& writer,
             float width,
             float height,
             std::string_view path

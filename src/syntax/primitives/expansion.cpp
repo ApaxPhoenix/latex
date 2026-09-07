@@ -1,4 +1,5 @@
 #include "syntax/primitives/expansion.hpp"
+#include "logger.hpp"
 
 #include <array>
 #include <format>
@@ -6,6 +7,10 @@
 #include <utility>
 
 namespace syntax::primitives::expansion {
+
+    namespace {
+        constexpr std::size_t limit = 1'000'000uz;
+    }
 
     void ingest(Mouth& mouth, semantics::Registers& registers) {
         const Symbol identifier = mouth.lexicon().intern("\\count");
@@ -28,7 +33,12 @@ namespace syntax::primitives::expansion {
             body.reserve(arguments.size());
 
             mouth.inject(arguments);
+            std::size_t count = 0uz;
             while (true) {
+                if (++count > limit) {
+                    Logger::log(Logger::Type::Semantics, Logger::Level::Error, "\\expanded exceeded expansion limit");
+                    break;
+                }
                 const Token token = mouth.expand();
                 if (token.values.empty()) break;
                 body.push_back(token);
@@ -40,7 +50,12 @@ namespace syntax::primitives::expansion {
             std::string content;
             const Symbol terminate = mouth.lexicon().intern("\\endcsname");
 
+            std::size_t count = 0uz;
             while (true) {
+                if (++count > limit) {
+                    Logger::log(Logger::Type::Semantics, Logger::Level::Error, "\\csname exceeded expansion limit");
+                    break;
+                }
                 const Token token = mouth.expand();
                 if (token.symbol == terminate || token.values.empty()) break;
                 content += token.values;
@@ -114,13 +129,15 @@ namespace syntax::primitives::expansion {
         });
 
         mouth.bind("\\substr", [&registers, identifier](Mouth& mouth) {
-            const std::size_t start = static_cast<std::size_t>(mouth.integer(registers, identifier).value_or(0));
-            const std::size_t count = static_cast<std::size_t>(mouth.integer(registers, identifier).value_or(0));
+            const auto start = mouth.integer(registers, identifier).value_or(0);
+            const auto count = mouth.integer(registers, identifier).value_or(0);
+            const std::size_t first = start < 0 ? 0uz : static_cast<std::size_t>(start);
+            const std::size_t span = count < 0 ? 0uz : static_cast<std::size_t>(count);
             const std::vector<Token> arguments = mouth.argument({}, 0);
             std::string content;
             for (const Token& token : arguments) content += token.values;
 
-            if (start < content.size()) mouth.ingest(content.substr(start, count));
+            if (first < content.size()) mouth.ingest(content.substr(first, span));
         });
     }
 

@@ -21,6 +21,10 @@ namespace syntax::expression {
         return current;
     }
 
+    Token Parser::pending() const noexcept {
+        return current;
+    }
+
     Node* Parser::compose(const Node::Type type) const {
         auto* node = arena.compose<Node>(type);
         node->style = style;
@@ -37,7 +41,7 @@ namespace syntax::expression {
                     index, static_cast<int>(type), weight, right, structural);
     }
 
-    Node* Parser::sequence(const char closing) {
+    Node* Parser::sequence(const char closing, const Symbol stop) {
         if (depth >= limit) {
             const memory::Location location = current.location;
             Logger::fmt(Logger::Type::Parser, Logger::Level::Error, "Recursion limit threshold hit at {}:{}", location.line, location.column);
@@ -70,10 +74,15 @@ namespace syntax::expression {
         while (true) {
             const Token next = lookahead();
             if (next.values.empty()) {
-                if (closing != 0) {
-                    Logger::fmt(Logger::Type::Parser, Logger::Level::Warning, "Unexpected EOF while waiting for closing delimiter '{}' at {}:{}",
-                                closing, next.location.line, next.location.column);
+                if (closing != 0 || stop != kInvalidSymbol) {
+                    Logger::fmt(Logger::Type::Parser, Logger::Level::Warning, "Unexpected EOF while waiting for closing delimiter at {}:{}",
+                                next.location.line, next.location.column);
                 }
+                break;
+            }
+
+            if (stop != kInvalidSymbol && next.symbol == stop) {
+                advance();
                 break;
             }
 
@@ -82,7 +91,7 @@ namespace syntax::expression {
                 break;
             }
 
-            if (closing == 0 && next.values.size() == 1 && (next.values[0] == '}' || next.values[0] == ')')) {
+            if (closing == 0 && stop == kInvalidSymbol && next.values.size() == 1 && (next.values[0] == '}' || next.values[0] == ')')) {
                 break;
             }
 
@@ -324,14 +333,15 @@ namespace syntax::expression {
     }
 
     Node* Parser::parse() {
-        Logger::fmt(Logger::Type::Parser, Logger::Level::Debug, "Starting AST generation stream");
-        Node* root = sequence(0);
-        if (!root) {
-            Logger::log(Logger::Type::Parser, Logger::Level::Warning, "AST generation completed with empty or null root node");
-        } else {
-            Logger::fmt(Logger::Type::Parser, Logger::Level::Debug, "AST root constructed successfully with type {}", static_cast<int>(root->type));
-        }
-        return root;
+        return sequence(0, kInvalidSymbol);
+    }
+
+    Node* Parser::parse(const char closing) {
+        return sequence(closing, kInvalidSymbol);
+    }
+
+    Node* Parser::parse(const Symbol closing) {
+        return sequence(0, closing);
     }
 
 }

@@ -29,6 +29,7 @@ namespace render::layout {
                 case Node::Type::Glyph: size = static_cast<double>(item->glyph().width); break;
                 case Node::Type::Box:   size = static_cast<double>(item->box().width); break;
                 case Node::Type::Kern:  size = static_cast<double>(item->kern().width); break;
+                case Node::Type::Rule:  size = static_cast<double>(item->rule().width); break;
                 case Node::Type::Glue:
                     size = static_cast<double>(item->glue().width);
                     give = static_cast<double>(item->glue().stretch);
@@ -84,15 +85,20 @@ namespace render::layout {
 
             if (!split) continue;
 
+            const bool waste = node->type() == Node::Type::Glue ||
+                                node->type() == Node::Type::Penalty ||
+                                node->type() == Node::Type::Pause;
+            const std::size_t reach = waste ? cursor : cursor + 1;
+
             const Candidate* pick = nullptr;
             double lowest = std::numeric_limits<double>::max();
 
             for (std::size_t slot = 0; slot < candidate; ++slot) {
                 const auto& entry = pool[slot];
 
-                const double span = width[cursor + 1] - width[entry.index];
-                const double give = stretch[cursor + 1] - stretch[entry.index];
-                const double take = shrink[cursor + 1] - shrink[entry.index];
+                const double span = width[reach] - width[entry.index];
+                const double give = stretch[reach] - stretch[entry.index];
+                const double take = shrink[reach] - shrink[entry.index];
                 const double gap = configuration.target - span;
 
                 double ratio = 0.0;
@@ -132,15 +138,21 @@ namespace render::layout {
         while (current && current->link) {
             const std::size_t row = current->line - 1;
             const std::size_t start = current->link->index;
-            const std::size_t end = current->index;
 
-            if (const std::size_t length = end > start ? end - start : 0; length > 0) {
-                auto slice = arena.allocate<Node*>(length);
-                for (std::size_t step = 0; step < length; ++step) {
-                    slice[step] = input[start + step];
-                }
-                result[row] = Line::horizontal(arena, slice, static_cast<float>(configuration.target));
+            const std::size_t mark = current->index - 1;
+            const Node* border = input[mark];
+            const bool waste = border->type() == Node::Type::Glue ||
+                                border->type() == Node::Type::Penalty ||
+                                border->type() == Node::Type::Pause;
+            const std::size_t end = waste ? mark : current->index;
+
+            const std::size_t length = end - start;
+            auto slice = arena.allocate<Node*>(length);
+            for (std::size_t step = 0; step < length; ++step) {
+                slice[step] = input[start + step];
             }
+            result[row] = Line::horizontal(arena, slice, static_cast<float>(configuration.target));
+
             current = current->link;
         }
 

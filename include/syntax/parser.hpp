@@ -21,6 +21,7 @@ namespace syntax {
 
         [[nodiscard]] Token step() const;
         [[nodiscard]] memory::Slice<Node*> parse();
+        [[nodiscard]] memory::Slice<Node*> parse(char closing);
 
         void bind(std::string_view name, Handler handler);
         void bind(Symbol symbol, Handler handler);

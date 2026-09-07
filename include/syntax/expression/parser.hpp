@@ -22,14 +22,18 @@ namespace syntax::expression {
         Parser(Mouth& mouth, const Unicodes& unicodes, memory::Arena& arena, Node::Style style = Node::Style::Inline);
 
         Node* parse();
+        Node* parse(char closing);
+        Node* parse(Symbol closing);
+
         void bind(Symbol symbol, Node::Type type, int weight = 0, bool right = false, bool structural = false);
         [[nodiscard]] Node* compose(Node::Type type) const;
+        [[nodiscard]] Token pending() const noexcept;
 
     private:
         Token advance();
         [[nodiscard]] Token lookahead() const noexcept;
 
-        Node* sequence(char closing = 0);
+        Node* sequence(char closing = 0, Symbol stop = kInvalidSymbol);
         Node* step(int priority = 0);
         Node* atom();
         Node* core();

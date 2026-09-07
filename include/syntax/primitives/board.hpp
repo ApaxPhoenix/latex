@@ -18,7 +18,7 @@ namespace syntax::primitives::streams {
 
     private:
         struct File {
-            std::ifstream stream;
+            std::ifstream stream{};
             bool opened = false;
         };
         std::array<File, maximum> files{};
@@ -32,7 +32,7 @@ namespace syntax::primitives::streams {
 
     private:
         struct File {
-            std::ofstream stream;
+            std::ofstream stream{};
             bool opened = false;
         };
         std::array<File, maximum> files{};

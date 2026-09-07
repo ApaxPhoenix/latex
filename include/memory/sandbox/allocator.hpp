@@ -16,7 +16,7 @@ namespace sandbox {
         Allocator& operator=(Allocator&&) noexcept = delete;
 
         [[nodiscard]] void* allocate(std::size_t size);
-        void deallocate(void* ptr, std::size_t size) noexcept;
+        void deallocate(void* pointer, std::size_t size) noexcept;
 
         [[nodiscard]] std::size_t allocated() const noexcept { return used; }
         [[nodiscard]] std::size_t capacity() const noexcept { return limit; }

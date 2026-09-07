@@ -17,6 +17,10 @@ namespace syntax {
     }
 
     memory::Slice<Node*> Parser::parse() {
+        return parse(0);
+    }
+
+    memory::Slice<Node*> Parser::parse(const char closing) {
         Logger::log(Logger::Type::Parser, Logger::Level::Informative, "Starting AST syntax parsing pass...");
 
         std::vector<Node*> nodes;
@@ -43,6 +47,12 @@ namespace syntax {
 
         while (true) {
             const auto [symbol, category, location, values] = mouth_.expand();
+
+            if (closing != 0 && category == CatCodes::Category::Group && values.size() == 1 && values[0] == closing) {
+                flush();
+                break;
+            }
+
             if (values.empty()) {
                 flush();
                 Logger::log(Logger::Type::Parser, Logger::Level::Debug, "Parser reached end of expansion stream");

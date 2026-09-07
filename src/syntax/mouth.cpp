@@ -121,10 +121,23 @@ namespace syntax {
     }
 
     Token Mouth::expand() {
-        while (!this->cursor.empty()) {
-            if (!this->step()) return this->cursor.advance();
+        if (this->depth >= this->limit) {
+            const std::string text = std::format("Expansion depth {} exceeded", this->limit);
+            Logger::log(Logger::Type::Mouth, Logger::Level::Error, text);
+            this->history_.emplace_back(Traceback::Type::Recursion, memory::Location{}, text);
+            return {};
         }
-        return {};
+
+        this->depth++;
+        Token found{};
+        while (!this->cursor.empty()) {
+            if (!this->step()) {
+                found = this->cursor.advance();
+                break;
+            }
+        }
+        this->depth--;
+        return found;
     }
 
     int Mouth::step() {
@@ -146,14 +159,6 @@ namespace syntax {
 
         if (token.symbol < this->macros.size() && this->macros[token.symbol].active) {
             this->cursor.advance();
-
-            if (this->depth >= this->limit) {
-                const std::string message = std::format("Macro recursion threshold {} exceeded", this->limit);
-                Logger::fmt(Logger::Type::Mouth, Logger::Level::Error, "Recursion limit hit at {}:{}", token.location.line, token.location.column);
-                this->history_.emplace_back(Traceback::Type::Recursion, token.location, message);
-                return 0;
-            }
-            this->depth++;
 
             const auto& macro = this->macros[token.symbol];
             std::vector<std::vector<Token>> arguments;
@@ -184,7 +189,6 @@ namespace syntax {
             }
 
             this->cursor.inject(output);
-            this->depth--;
             return 1;
         }
 

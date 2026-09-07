@@ -15,6 +15,7 @@
 #include <include/core/SkPaint.h>
 
 #include <unordered_map>
+#include <vector>
 
 namespace render {
 
@@ -24,39 +25,46 @@ namespace render {
             memory::Arena& arena,
             memory::Arena& scratch,
             typography::Shaper& shaper,
-            layout::Typesetter& typesetter,
-            SkCanvas* canvas = nullptr
+            layout::Typesetter& setter,
+            SkCanvas* board = nullptr
         ) noexcept;
 
-        void feed(memory::Slice<syntax::Node*> ast, const typography::Font& font, float size);
+        void feed(memory::Slice<syntax::Node*> nodes, const typography::Font& font, float size);
         void feed(const syntax::expression::Node* root, const typography::Font& font);
 
-        void paint(float x = 0.0f, float y = 0.0f);
+        void paint(float across = 0.0f, float down = 0.0f);
 
-        void draw(const layout::Node* root, float x = 0.0f, float y = 0.0f) const;
-        void draw(memory::Slice<layout::Node*> nodes, float x = 0.0f, float y = 0.0f) const;
+        void draw(const layout::Node* root, float across = 0.0f, float down = 0.0f) const;
+        void draw(memory::Slice<layout::Node*> nodes, float across = 0.0f, float down = 0.0f) const;
 
-        void canvas(SkCanvas* newCanvas) noexcept { _canvas = newCanvas; }
+        void target(SkCanvas* board) noexcept { canvas = board; }
 
-        [[nodiscard]] layout::Document& document() noexcept { return document_; }
-        [[nodiscard]] layout::Typesetter& typesetter() const noexcept { return typesetter_; }
+        [[nodiscard]] layout::Document& document() noexcept { return paper; }
+        [[nodiscard]] const layout::Document& document() const noexcept { return paper; }
+        [[nodiscard]] layout::Typesetter& engine() const noexcept { return setter; }
 
     private:
-        void stack(memory::Slice<layout::Node*> nodes, float x, float y) const;
-        void box(const layout::Node* item, float x, float y) const;
-        void node(const layout::Node* item, float x, float y) const;
-        void glyph(const layout::Node* item, float x, float y) const;
-        void rule(const layout::Node* item, float x, float y) const;
+        void stack(memory::Slice<layout::Node*> nodes, float across, float down) const;
+        void box(const layout::Node* item, float across, float down) const;
+        void node(const layout::Node* item, float across, float down) const;
+        void glyph(const layout::Node* item, float across, float down) const;
+        void rule(const layout::Node* item, float across, float down) const;
+        void flush() const;
 
         memory::Arena& arena;
         memory::Arena& scratch;
         typography::Shaper& shaper;
-        layout::Typesetter& typesetter_;
-        layout::Document document_;
+        layout::Typesetter& setter;
+        layout::Document paper;
 
-        SkCanvas* _canvas{nullptr};
+        SkCanvas* canvas{nullptr};
         SkPaint ink{};
-        mutable std::unordered_map<const typography::Font*, SkFont> fonts{};
+
+        mutable std::vector<SkGlyphID> glyphs{};
+        mutable std::vector<SkPoint> spots{};
+        mutable const typography::Font* cache{nullptr};
+        mutable SkFont style{};
+        mutable std::unordered_map<const typography::Font*, SkFont> styles{};
     };
 
 }

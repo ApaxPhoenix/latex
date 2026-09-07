@@ -14,8 +14,9 @@ namespace syntax::primitives::registers {
         const Symbol token = mouth.lexicon().intern("\\toks");
 
         static auto allocate = [](Mouth& mouth, const semantics::Registers& registers, const Symbol identifier) -> std::size_t {
-            if (const auto value = mouth.integer(registers, identifier)) return static_cast<std::size_t>(*value);
-            return 0uz;
+            const auto value = mouth.integer(registers, identifier);
+            if (!value || *value < 0) return 0uz;
+            return static_cast<std::size_t>(*value);
         };
 
         static auto scalar = [](Mouth& mouth, semantics::Registers& registers, const semantics::Registers::Type type, const Symbol identifier, const Symbol size) {

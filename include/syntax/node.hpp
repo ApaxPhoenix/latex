@@ -5,6 +5,8 @@
 
 #include <string_view>
 
+namespace syntax::expression { struct Node; }
+
 namespace syntax {
 
     struct Node {
@@ -18,13 +20,16 @@ namespace syntax {
             Macro,       // Macro expansion or directive (\def, \newcommand)
             Argument,    // Positional or optional argument payload ({...}, [...])
             Alignment,   // Table or grid cell/row alignment marker (&, \\)
-            Comment      // Source code line comment (% ...)
+            Comment,     // Source code line comment (% ...)
+            Directive    // Opaque engine-produced payload (boxes, glue, rules, penalties)
         };
 
         Type type = Type::Text;
         std::string_view value{};
         memory::Location location{};
         memory::Slice<Node*> nodes{};
+        const expression::Node* expression{nullptr};
+        void* directive{nullptr};
 
         Node() = default;
 

@@ -6,14 +6,15 @@
 #include <mutex>
 #include <string>
 #include <utility>
+#include <span>
 
 namespace render::typography {
 
-    thread_local Face::Instance Face::instance{};
+    thread_local Face::Instance Face::core{};
 
     Face::Instance::Instance() noexcept {
         if (FT_Init_FreeType(&library) != 0) {
-            Logger::log(Logger::Type::Layout, Logger::Level::Error, "FreeType library init failed");
+            Logger::log(Logger::Type::Layout, Logger::Level::Error, "Error");
         }
     }
 
@@ -28,7 +29,7 @@ namespace render::typography {
     }
 
     Face::Face(Face&& input) noexcept {
-        std::lock_guard guard(input.mutex);
+        std::lock_guard lock(input.mutex);
         native = std::exchange(input.native, nullptr);
         handle = std::exchange(input.handle, nullptr);
         scale = std::exchange(input.scale, 0);
@@ -37,7 +38,7 @@ namespace render::typography {
 
     Face& Face::operator=(Face&& input) noexcept {
         if (this != &input) {
-            std::scoped_lock guard(mutex, input.mutex);
+            std::scoped_lock lock(mutex, input.mutex);
 
             if (handle) {
                 hb_face_destroy(handle);
@@ -55,7 +56,7 @@ namespace render::typography {
     }
 
     void Face::dispose() noexcept {
-        std::lock_guard guard(mutex);
+        std::lock_guard lock(mutex);
 
         if (handle) {
             hb_face_destroy(handle);
@@ -72,68 +73,57 @@ namespace render::typography {
 
     bool Face::compose(const std::string_view path) noexcept {
         if (path.empty()) {
-            Logger::log(Logger::Type::Layout, Logger::Level::Error, "Empty font path provided");
             return false;
         }
 
         const std::string name(path);
         std::ifstream file(name, std::ios::binary | std::ios::ate);
         if (!file.is_open()) {
-            Logger::fmt(Logger::Type::Layout, Logger::Level::Error, "Failed opening font file: {}", path);
             return false;
         }
 
-        const std::streamsize length = file.tellg();
-        if (length <= 0) {
-            Logger::fmt(Logger::Type::Layout, Logger::Level::Error, "Empty font file: {}", path);
+        const std::streamsize size = file.tellg();
+        if (size <= 0) {
             return false;
         }
 
         file.seekg(0, std::ios::beg);
-        std::vector<std::uint8_t> bytes(static_cast<std::size_t>(length));
-        if (!file.read(reinterpret_cast<char*>(bytes.data()), length)) {
-            Logger::fmt(Logger::Type::Layout, Logger::Level::Error, "Failed reading font file: {}", path);
+        std::vector<std::uint8_t> data(static_cast<std::size_t>(size));
+        if (!file.read(reinterpret_cast<char*>(data.data()), size)) {
             return false;
         }
 
-        if (!load(std::move(bytes))) {
-            Logger::fmt(Logger::Type::Layout, Logger::Level::Error, "Failed loading face: {}", path);
-            return false;
-        }
-        return true;
+        return load(std::move(data));
     }
 
-    bool Face::compose(const std::span<const std::uint8_t> bytes) noexcept {
-        if (bytes.empty()) {
-            Logger::log(Logger::Type::Layout, Logger::Level::Error, "Empty face byte stream provided");
+    bool Face::compose(const std::span<const std::uint8_t> data) noexcept {
+        if (data.empty()) {
             return false;
         }
 
-        return load(std::vector(bytes.begin(), bytes.end()));
+        return load(std::vector(data.begin(), data.end()));
     }
 
-    bool Face::load(std::vector<std::uint8_t> bytes) noexcept {
-        if (!instance.library) return false;
+    bool Face::load(std::vector<std::uint8_t> data) noexcept {
+        if (!core.library) return false;
 
-        FT_Face loaded = nullptr;
+        FT_Face face = nullptr;
         if (FT_New_Memory_Face(
-                instance.library,
-                bytes.data(),
-                static_cast<FT_Long>(bytes.size()),
+                core.library,
+                data.data(),
+                static_cast<FT_Long>(data.size()),
                 0,
-                &loaded) != 0) {
-            Logger::log(Logger::Type::Layout, Logger::Level::Error, "Failed loading memory face");
+                &face) != 0) {
             return false;
         }
 
-        hb_face_t* created = hb_ft_face_create_referenced(loaded);
-        if (!created) {
-            Logger::log(Logger::Type::Layout, Logger::Level::Error, "HarfBuzz memory face creation failed");
-            FT_Done_Face(loaded);
+        hb_face_t* font = hb_ft_face_create_referenced(face);
+        if (!font) {
+            FT_Done_Face(face);
             return false;
         }
 
-        std::lock_guard guard(mutex);
+        std::lock_guard lock(mutex);
 
         if (handle) {
             hb_face_destroy(handle);
@@ -142,10 +132,10 @@ namespace render::typography {
             FT_Done_Face(native);
         }
 
-        storage = std::move(bytes);
-        native = loaded;
-        handle = created;
-        scale = static_cast<std::uint32_t>(loaded->units_per_EM);
+        storage = std::move(data);
+        native = face;
+        handle = font;
+        scale = static_cast<std::uint32_t>(face->units_per_EM);
         return true;
     }
 

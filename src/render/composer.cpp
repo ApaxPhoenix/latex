@@ -7,6 +7,8 @@
 #include <include/core/SkTextBlob.h>
 #include <include/core/SkTypeface.h>
 
+#include <cstring>
+
 #if defined(_WIN32)
     #include <include/ports/SkTypeface_win.h>
 #else
@@ -20,304 +22,217 @@ namespace render {
         memory::Arena& arena,
         memory::Arena& scratch,
         typography::Shaper& shaper,
-        layout::Typesetter& typesetter,
-        SkCanvas* canvas
+        layout::Typesetter& setter,
+        SkCanvas* board
     ) noexcept
-        : arena(arena), scratch(scratch), shaper(shaper), typesetter_(typesetter),
-          document_(arena, scratch, shaper), _canvas(canvas) {
-
+        : arena(arena), scratch(scratch), shaper(shaper), setter(setter),
+          paper(arena, scratch, shaper), canvas(board) {
         ink.setColor(SK_ColorBLACK);
         ink.setAntiAlias(true);
+        glyphs.reserve(1024);
+        spots.reserve(1024);
     }
 
-    void Composer::feed(memory::Slice<syntax::Node*> ast, const typography::Font& font, float size) {
-        for (const auto& entry : ast) {
+    void Composer::feed(memory::Slice<syntax::Node*> nodes, const typography::Font& font, float size) {
+        for (const auto& entry : nodes) {
             if (entry) {
-                document_.append(entry->value, font, size);
+                paper.append(entry->value, font, size);
             }
         }
     }
 
     void Composer::feed(const syntax::expression::Node* root, const typography::Font& font) {
         if (root) {
-            document_.append(root, font);
+            paper.append(root, font);
         }
     }
 
-    void Composer::paint(float x, float y) {
-        if (!_canvas) {
-            return;
-        }
-
-        document_.layout();
-
-        for (memory::Slice<layout::Pager::Page> pages = typesetter_.compose(document_); const auto& page : pages) {
-            draw(page.nodes, x, y);
-            y += document_.configuration().height;
+    void Composer::paint(float across, float down) {
+        if (!canvas) return;
+        paper.layout();
+        for (memory::Slice<layout::Pager::Page> pages = setter.compose(paper); const auto& page : pages) {
+            draw(page.nodes, across, down);
+            down += paper.configuration().height;
         }
     }
 
-    void Composer::draw(const layout::Node* root, const float x, const float y) const {
-        node(root, x, y);
+    void Composer::flush() const {
+        if (glyphs.empty() || !canvas) return;
+        SkTextBlobBuilder maker;
+        const auto& run = maker.allocRunPos(style, static_cast<int>(glyphs.size()));
+        std::memcpy(run.glyphs, glyphs.data(), glyphs.size() * sizeof(SkGlyphID));
+        std::memcpy(run.pos, spots.data(), spots.size() * sizeof(SkPoint));
+        if (const sk_sp<SkTextBlob> blob = maker.make()) {
+            canvas->drawTextBlob(blob, 0.0f, 0.0f, ink);
+        }
+        glyphs.clear();
+        spots.clear();
+    }
+
+    void Composer::draw(const layout::Node* root, const float across, const float down) const {
+        node(root, across, down);
+        flush();
     }
 
     void Composer::draw(
         const memory::Slice<layout::Node*> nodes,
-        const float x,
-        const float y
+        const float across,
+        const float down
     ) const {
-        stack(nodes, x, y);
+        stack(nodes, across, down);
+        flush();
     }
 
     void Composer::stack(
         memory::Slice<layout::Node*> nodes,
-        const float x,
-        const float y
+        const float across,
+        const float down
     ) const {
-        for (const auto* element : nodes) {
-            node(element, x, y);
+        for (const auto* item : nodes) {
+            node(item, across, down);
         }
     }
 
-    void Composer::box(const layout::Node* item, float x, float y) const {
-        if (item->box().alignment == layout::Node::Alignment::Horizontal) {
-            y += item->box().shift;
+    void Composer::box(const layout::Node* item, float across, float down) const {
+        const auto align = item->box().alignment;
+        const auto sign = item->box().sign;
+        const auto ratio = item->box().ratio;
+        const auto stretch = layout::Node::Sign::Stretching;
+        const auto shrink = layout::Node::Sign::Shrinking;
 
-            for (std::size_t index = 0; index < item->box().list.size(); ++index) {
-                const auto* child = item->box().list[index];
-
-                if (!child) {
-                    continue;
-                }
-
-                node(child, x, y);
-
-                switch (child->type()) {
+        if (align == layout::Node::Alignment::Horizontal) {
+            down += item->box().shift;
+            for (const auto* kid : item->box().list) {
+                if (!kid) continue;
+                node(kid, across, down);
+                switch (kid->type()) {
                     case layout::Node::Type::Box:
-                        x += child->box().width;
+                        across += kid->box().width;
                         break;
-
                     case layout::Node::Type::Glyph:
-                        x += child->glyph().width;
+                        across += kid->glyph().width;
                         break;
-
                     case layout::Node::Type::Rule:
-                        x += child->rule().width;
+                        across += kid->rule().width;
                         break;
-
                     case layout::Node::Type::Kern:
-                        x += child->kern().width;
+                        across += kid->kern().width;
                         break;
-
                     case layout::Node::Type::Glue:
-                        x += child->glue().width;
-
-                        if (
-                            item->box().sign == layout::Node::Sign::Stretching &&
-                            child->glue().expand == item->box().list[index]->glue().expand
-                        ) {
-                            x += child->glue().stretch * item->box().ratio;
-                        } else if (
-                            item->box().sign == layout::Node::Sign::Shrinking &&
-                            child->glue().limit == item->box().list[index]->glue().limit
-                        ) {
-                            x -= child->glue().shrink * item->box().ratio;
+                        across += kid->glue().width;
+                        if (sign == stretch && kid->glue().expand == kid->glue().expand) {
+                            across += kid->glue().stretch * ratio;
+                        } else if (sign == shrink && kid->glue().limit == kid->glue().limit) {
+                            across -= kid->glue().shrink * ratio;
                         }
-
                         break;
-
                     default:
                         break;
                 }
             }
         } else {
-            x += item->box().shift;
-
-            for (std::size_t index = 0; index < item->box().list.size(); ++index) {
-                const auto* child = item->box().list[index];
-
-                if (!child) {
-                    continue;
-                }
-
-                switch (child->type()) {
+            across += item->box().shift;
+            for (const auto* kid : item->box().list) {
+                if (!kid) continue;
+                switch (kid->type()) {
                     case layout::Node::Type::Box:
-                        y += child->box().height;
-                        node(child, x, y);
-                        y += child->box().depth;
+                        down += kid->box().height;
+                        node(kid, across, down);
+                        down += kid->box().depth;
                         break;
-
                     case layout::Node::Type::Glyph:
-                        y += child->glyph().height;
-                        node(child, x, y);
-                        y += child->glyph().depth;
+                        down += kid->glyph().height;
+                        node(kid, across, down);
+                        down += kid->glyph().depth;
                         break;
-
                     case layout::Node::Type::Rule:
-                        y += child->rule().height;
-                        node(child, x, y);
-                        y += child->rule().depth;
+                        down += kid->rule().height;
+                        node(kid, across, down);
+                        down += kid->rule().depth;
                         break;
-
                     case layout::Node::Type::Kern:
-                        y += child->kern().width;
-                        node(child, x, y);
+                        down += kid->kern().width;
+                        node(kid, across, down);
                         break;
-
                     case layout::Node::Type::Glue:
-                        y += child->glue().width;
-
-                        if (
-                            item->box().sign == layout::Node::Sign::Stretching &&
-                            child->glue().expand == item->box().list[index]->glue().expand
-                        ) {
-                            y += child->glue().stretch * item->box().ratio;
-                        } else if (
-                            item->box().sign == layout::Node::Sign::Shrinking &&
-                            child->glue().limit == item->box().list[index]->glue().limit
-                        ) {
-                            y -= child->glue().shrink * item->box().ratio;
+                        down += kid->glue().width;
+                        if (sign == stretch && kid->glue().expand == kid->glue().expand) {
+                            down += kid->glue().stretch * ratio;
+                        } else if (sign == shrink && kid->glue().limit == kid->glue().limit) {
+                            down -= kid->glue().shrink * ratio;
                         }
-
-                        node(child, x, y);
+                        node(kid, across, down);
                         break;
-
                     default:
-                        node(child, x, y);
+                        node(kid, across, down);
                         break;
                 }
             }
         }
     }
 
-    void Composer::node(const layout::Node* item, const float x, const float y) const {
-        if (!item) {
-            return;
-        }
-
+    void Composer::node(const layout::Node* item, const float across, const float down) const {
+        if (!item) return;
         switch (item->type()) {
             case layout::Node::Type::Box:
-                box(item, x, y);
+                box(item, across, down);
                 break;
-
             case layout::Node::Type::Glyph:
-                glyph(item, x, y);
+                glyph(item, across, down);
                 break;
-
             case layout::Node::Type::Rule:
-                rule(item, x, y);
+                rule(item, across, down);
                 break;
-
             default:
                 break;
         }
     }
 
-    void Composer::glyph(const layout::Node* item, float x, float y) const {
-        x += item->glyph().x;
-        y += item->glyph().y;
+    void Composer::glyph(const layout::Node* item, float across, float down) const {
+        across += item->glyph().x;
+        down += item->glyph().y;
 
         const typography::Font* font = item->glyph().font;
+        if (!font || !font->face()) return;
 
-        if (!font || !font->face()) {
-            return;
-        }
-
-        SkFont style;
-
-        if (const auto iterator = fonts.find(font); iterator != fonts.end()) {
-            style = iterator->second;
-        } else {
-            const auto& data = font->face()->data();
-
-            if (data.empty()) {
-                return;
-            }
-
-            const sk_sp<SkData> fontData = SkData::MakeWithCopy(
-                data.data(),
-                data.size()
-            );
-
-            if (!fontData) {
-                return;
-            }
-
-            sk_sp<SkTypeface> typeface;
-
+        if (font != cache) {
+            flush();
+            if (const auto match = styles.find(font); match != styles.end()) {
+                style = match->second;
+            } else {
+                const auto& raw = font->face()->data();
+                if (raw.empty()) return;
+                const sk_sp<SkData> bytes = SkData::MakeWithoutCopy(raw.data(), raw.size());
+                if (!bytes) return;
+                static const sk_sp<SkFontMgr> manager = []() {
 #if defined(_WIN32)
-            const sk_sp<SkFontMgr> manager = SkFontMgr_New_DirectWrite();
-
-            if (!manager) {
-                return;
-            }
-
-            typeface = manager->makeFromData(fontData);
+                    return SkFontMgr_New_DirectWrite();
 #else
-            const sk_sp<SkFontMgr> manager = SkFontMgr_New_FontConfig(
-                nullptr,
-                SkFontScanner_Make_FreeType()
-            );
-
-            if (!manager) {
-                return;
-            }
-
-            typeface = manager->makeFromData(fontData);
+                    return SkFontMgr_New_FontConfig(nullptr, SkFontScanner_Make_FreeType());
 #endif
-
-            if (!typeface) {
-                return;
+                }();
+                if (!manager) return;
+                sk_sp<SkTypeface> face = manager->makeFromData(bytes);
+                if (!face) return;
+                style = SkFont(face, font->size());
+                style.setEdging(SkFont::Edging::kAntiAlias);
+                styles.emplace(font, style);
             }
-
-            style = SkFont(
-                typeface,
-                font->size()
-            );
-
-            style.setEdging(SkFont::Edging::kAntiAlias);
-            style.setSubpixel(true);
-
-            fonts.emplace(font, style);
+            cache = font;
         }
 
-        if (!style.getTypeface()) {
-            return;
-        }
-
-        SkTextBlobBuilder builder;
-
-        const auto& run = builder.allocRunPos(style, 1);
-
-        run.glyphs[0] = static_cast<SkGlyphID>(item->glyph().code);
-        run.pos[0] = x;
-        run.pos[1] = y;
-
-        const sk_sp<SkTextBlob> blob = builder.make();
-
-        if (!blob) {
-            return;
-        }
-
-        _canvas->drawTextBlob(
-            blob,
-            0.0f,
-            0.0f,
-            ink
-        );
+        glyphs.emplace_back(static_cast<SkGlyphID>(item->glyph().code));
+        spots.emplace_back(SkPoint::Make(across, down));
     }
 
-    void Composer::rule(
-        const layout::Node* item,
-        const float x,
-        const float y
-    ) const {
-        _canvas->drawRect(
+    void Composer::rule(const layout::Node* item, const float across, const float down) const {
+        flush();
+        canvas->drawRect(
             SkRect::MakeLTRB(
-                x,
-                y - item->rule().height,
-                x + item->rule().width,
-                y + item->rule().depth
+                across,
+                down - item->rule().height,
+                across + item->rule().width,
+                down + item->rule().depth
             ),
             ink
         );

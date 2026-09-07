@@ -13,18 +13,17 @@ namespace render::typography {
     Registry::~Registry() noexcept {
         if (!table) return;
         for (std::size_t index = 0; index < slots; ++index) {
-            Node* current = table[index];
-            while (current) {
-                current->font.dispose();
-                current->face.dispose();
-                current = current->next;
+            Node* node = table[index];
+            while (node) {
+                node->font.dispose();
+                node->face.dispose();
+                node = node->next;
             }
         }
     }
 
-    Font* Registry::get(const Spec& spec, const std::string_view path) const noexcept {
+    Font* Registry::get(const Spec& spec, const std::string_view path) noexcept {
         if (!table) {
-            Logger::log(Logger::Type::Layout, Logger::Level::Error, "Font registry table uninitialized");
             return nullptr;
         }
 
@@ -35,12 +34,12 @@ namespace render::typography {
         hash ^= static_cast<std::size_t>(spec.size * 100.0f);
         const std::size_t slot = hash % slots;
 
-        for (Node* current = table[slot]; current; current = current->next) {
-            if (current->spec.family == spec.family &&
-                current->spec.weight == spec.weight &&
-                current->spec.slant == spec.slant &&
-                current->spec.size == spec.size) {
-                return &current->font;
+        for (Node* node = table[slot]; node; node = node->next) {
+            if (node->spec.family == spec.family &&
+                node->spec.weight == spec.weight &&
+                node->spec.slant == spec.slant &&
+                node->spec.size == spec.size) {
+                return &node->font;
             }
         }
 
@@ -48,13 +47,11 @@ namespace render::typography {
         node->spec = spec;
         node->spec.family = arena.copy(spec.family);
 
-        if (!node->face.compose(arena.copy(path))) {
-            Logger::fmt(Logger::Type::Layout, Logger::Level::Error, "Failed loading face for registry: {}", path);
+        if (!node->face.compose(path)) {
             return nullptr;
         }
 
         if (!node->font.compose(node->face, spec.size)) {
-            Logger::fmt(Logger::Type::Layout, Logger::Level::Error, "Failed loading font for registry: {}", spec.family);
             node->font.dispose();
             node->face.dispose();
             return nullptr;

@@ -4,6 +4,7 @@
 #include "typography/font.hpp"
 #include "memory/arena.hpp"
 
+#include <cstddef>
 #include <string_view>
 
 namespace render::typography {
@@ -29,8 +30,10 @@ namespace render::typography {
 
         Registry(const Registry&) = delete;
         Registry& operator=(const Registry&) = delete;
+        Registry(Registry&&) = delete;
+        Registry& operator=(Registry&&) = delete;
 
-        [[nodiscard]] Font* get(const Spec& spec, std::string_view path) const noexcept;
+        [[nodiscard]] Font* get(const Spec& spec, std::string_view path) noexcept;
 
     private:
         memory::Arena& arena;
