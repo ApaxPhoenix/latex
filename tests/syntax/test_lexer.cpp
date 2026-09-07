@@ -19,7 +19,7 @@ int main() {
     assert(group.values == "{");
 
     const syntax::Token data = lexer.advance();
-    assert(data.values == "article");
+    assert(data.values == "a");
 
     return 0;
 }
