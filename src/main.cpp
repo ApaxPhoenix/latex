@@ -2,6 +2,7 @@
 #include "layout/document.hpp"
 #include "layout/typesetter.hpp"
 #include "memory/arena.hpp"
+#include "modules.hpp"
 #include "render/composer.hpp"
 #include "render/pdf.hpp"
 #include "render/primitives/boxes.hpp"
@@ -128,6 +129,38 @@ int main(int count, char* arguments[]) {
     syntax::Cursor cursor(std::vector<syntax::Token>{});
     syntax::Mouth mouth(std::move(cursor), state, lexicon, arena);
 
+    render::typography::Shaper shaper(arena);
+    render::layout::Typesetter typesetter(arena, scratch);
+    render::Composer composer(arena, scratch, shaper, typesetter);
+
+    syntax::Parser parser(mouth, arena);
+
+    render::primitives::fonts::Selection selection;
+    selection.font(font);
+
+    // 1. REGISTER ALL PRIMITIVES FIRST
+    render::primitives::document::ingest(mouth, composer.document(), state.registers());
+    syntax::primitives::registers::ingest(mouth, state.registers());
+    syntax::primitives::grouping::ingest(mouth);
+    render::primitives::fonts::ingest(mouth, state.registers(), registry, options, scratch, selection);
+    render::primitives::boxes::ingest(parser, state.registers(), shaper, typesetter, selection);
+    render::primitives::glue::ingest(parser, state.registers());
+    render::primitives::rules::ingest(parser, state.registers());
+    render::primitives::penalties::ingest(parser, state.registers());
+    render::primitives::expression::ingest(parser, unicodes);
+    syntax::primitives::characters::ingest(mouth, state.registers());
+    syntax::primitives::conditionals::Gate{lexicon}.ingest(mouth, state.registers());
+    syntax::primitives::definitions::ingest(mouth); // Binds \def, \csname, etc.
+
+    // 2. INGEST MASTER MODULE (main.mtex)
+    if (const auto core = syntax::modules::find("main.mtex")) {
+        mouth.ingest(*core);
+    } else {
+        std::cerr << "Error: Embedded module 'main.mtex' not found!\n";
+        return 1;
+    }
+
+    // 3. READ AND INGEST USER DOCUMENT (main.tex)
     std::ifstream file(source, std::ios::binary | std::ios::ate);
     if (!file) {
         std::cerr << "Failed to open LaTeX file: " << source.string() << '\n';
@@ -147,28 +180,7 @@ int main(int count, char* arguments[]) {
 
     mouth.ingest(content);
 
-    render::typography::Shaper shaper(arena);
-    render::layout::Typesetter typesetter(arena, scratch);
-    render::Composer composer(arena, scratch, shaper, typesetter);
-
-    syntax::Parser parser(mouth, arena);
-
-    render::primitives::fonts::Selection selection;
-    selection.font(font);
-
-    render::primitives::document::ingest(mouth, composer.document(), state.registers());
-    syntax::primitives::registers::ingest(mouth, state.registers());
-    syntax::primitives::grouping::ingest(mouth);
-    render::primitives::fonts::ingest(mouth, state.registers(), registry, options, scratch, selection);
-    render::primitives::boxes::ingest(parser, state.registers(), shaper, typesetter, selection);
-    render::primitives::glue::ingest(parser, state.registers());
-    render::primitives::rules::ingest(parser, state.registers());
-    render::primitives::penalties::ingest(parser, state.registers());
-    render::primitives::expression::ingest(parser, unicodes);
-    syntax::primitives::characters::ingest(mouth, state.registers());
-    syntax::primitives::conditionals::Gate{lexicon}.ingest(mouth, state.registers());
-    syntax::primitives::definitions::ingest(mouth);
-
+    // 4. PARSE DOCUMENT
     const memory::Slice<syntax::Node*> outputs = parser.parse();
     const auto step = std::chrono::high_resolution_clock::now();
 

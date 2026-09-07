@@ -19,51 +19,84 @@ if(NOT harfbuzz_FOUND)
     pkg_check_modules(HARFBUZZ REQUIRED harfbuzz)
 endif()
 
-set(LOOKUP_INPUT "${CMAKE_CURRENT_SOURCE_DIR}/assets/unicodes.gperf")
-set(LOOKUP_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/lookup.hpp")
+set(source "${CMAKE_CURRENT_SOURCE_DIR}")
+set(binary "${CMAKE_CURRENT_BINARY_DIR}")
+
+file(MAKE_DIRECTORY "${binary}/assets")
+file(MAKE_DIRECTORY "${binary}/include")
+
+set(input "${source}/assets/unicodes.gperf")
+set(output "${binary}/include/lookup.hpp")
 
 add_custom_command(
-        OUTPUT ${LOOKUP_OUTPUT}
-        COMMAND ${GPERF_EXECUTABLE} -t -C -N query -Z Lookup -L C++ ${LOOKUP_INPUT} --output-file=${LOOKUP_OUTPUT}
-        DEPENDS ${LOOKUP_INPUT}
+        OUTPUT ${output}
+        COMMAND ${GPERF_EXECUTABLE} -t -C -N query -Z Lookup -L C++ ${input} --output-file=${output}
+        DEPENDS ${input}
         VERBATIM
 )
 
-add_custom_target(lookup DEPENDS ${LOOKUP_OUTPUT})
+add_custom_target(lookup DEPENDS ${output})
 
-file(GLOB_RECURSE PROJECT_SOURCE_FILES CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
+set(modules "${source}/src/modules")
+set(script "${source}/cmake/ModulesStaticLinker.cmake")
+set(draft "${binary}/assets/modules.gperf")
+set(header "${binary}/include/modules.hpp")
+
+file(GLOB files CONFIGURE_DEPENDS "${modules}/*.mtex")
+
+add_custom_command(
+        OUTPUT ${draft}
+        COMMAND ${CMAKE_COMMAND} -DDIRECTORY=${modules} -DTARGET=${draft} -P ${script}
+        DEPENDS ${files} ${script}
+        VERBATIM
 )
 
-file(GLOB_RECURSE PROJECT_HEADER_FILES CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
+add_custom_command(
+        OUTPUT ${header}
+        COMMAND ${GPERF_EXECUTABLE} -t -C -N query -Z Modules -L C++ ${draft} --output-file=${header}
+        DEPENDS ${draft}
+        VERBATIM
 )
 
-file(GLOB_RECURSE TREE_DIRECTORY_LIST LIST_DIRECTORIES true CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/*"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/*"
+add_custom_target(modules DEPENDS ${header})
+
+file(GLOB_RECURSE sources CONFIGURE_DEPENDS
+        "${source}/src/*.cpp"
+        "${source}/src/*.c"
 )
 
-set(PROJECT_INCLUDE_PATHS
-        "${CMAKE_CURRENT_SOURCE_DIR}/include"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-        "${CMAKE_CURRENT_BINARY_DIR}"
+set(engine "${sources}")
+list(REMOVE_ITEM engine "${source}/src/main.cpp")
+
+file(GLOB_RECURSE headers CONFIGURE_DEPENDS
+        "${source}/include/*.hpp"
+        "${source}/include/*.h"
+        "${source}/src/*.hpp"
+        "${source}/src/*.h"
 )
 
-foreach(DIRECTORY_ENTRY ${TREE_DIRECTORY_LIST})
-    if(IS_DIRECTORY ${DIRECTORY_ENTRY})
-        list(APPEND PROJECT_INCLUDE_PATHS ${DIRECTORY_ENTRY})
+file(GLOB_RECURSE tree LIST_DIRECTORIES true CONFIGURE_DEPENDS
+        "${source}/include/*"
+        "${source}/src/*"
+)
+
+set(includes
+        "${source}/include"
+        "${source}/src"
+        "${binary}"
+        "${binary}/include"
+)
+
+foreach(item ${tree})
+    if(IS_DIRECTORY ${item})
+        list(APPEND includes ${item})
     endif()
 endforeach()
 
-add_executable(latex ${PROJECT_SOURCE_FILES} ${PROJECT_HEADER_FILES} ${LOOKUP_OUTPUT})
-add_dependencies(latex lookup)
+add_executable(latex ${sources} ${headers} ${output} ${header})
+add_dependencies(latex lookup modules)
 
-target_include_directories(latex PUBLIC ${PROJECT_INCLUDE_PATHS})
+target_include_directories(latex PUBLIC ${includes})
 
 target_link_libraries(latex PRIVATE
         unofficial::skia::skia
@@ -88,3 +121,6 @@ if(WIN32)
             usp10
     )
 endif()
+
+enable_testing()
+add_subdirectory(tests)
