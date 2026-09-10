@@ -31,23 +31,28 @@
 
 A complete rewrite of the LaTeX typesetting system, celebrated for its professionalism and engineered in C++ for maximum compatibility and speed.
 
-LaTeX has long been the gold standard for typesetting documents. However, while standard LaTeX provides a powerful high-level descriptive markup language, it is often perceived as slow and unforgiving. This is largely due to its decades-old macro-processing mechanism, which inherently limits execution speed and consumes excessive overhead. 
+LaTeX has long been the gold standard for typesetting documents. However, while standard LaTeX provides a powerful high-level descriptive markup language, it is often perceived as slow and unforgiving. This is largely due to its decades-old macro-processing mechanism, which inherently limits execution speed and consumes excessive overhead.
 
-mLatex (also known as LaTeX+) was not built to be just a simple clone. It is a ground-up rewrite that keeps the familiar syntax and language intact while providing a minimalist footprint and unparalleled execution speed—even when compared to modern alternatives like [Typst](https://github.com/typst/typst). I engineered it for maximum capacity and security, supporting robust document generation while maintaining the comfortable stability of traditional LaTeX. It continues to surpass standard word processors like [Microsoft Word](https://en.wikipedia.org/wiki/Microsoft_Word) in mathematical typesetting fidelity. The fundamental user experience remains unchanged; rather, the underlying architecture has evolved so that veteran authors can transition seamlessly.
+mLaTeX (also known as LaTeX+) was not built to be just a simple clone. It is a ground-up rewrite that keeps the familiar syntax and language intact while providing a minimalist footprint and unparalleled execution speed—even when compared to modern alternatives like [Typst](https://github.com/typst/typst). I engineered it for maximum capacity and security, supporting robust document generation while maintaining the comfortable stability of traditional LaTeX. It continues to surpass standard word processors like [Microsoft Word](https://en.wikipedia.org/wiki/Microsoft_Word) in mathematical typesetting fidelity. The fundamental user experience remains unchanged; rather, the underlying architecture has evolved so that veteran authors can transition seamlessly.
 
 ## Installation
-The mLatex CLI is available from various sources:
 
-- You can get the source code and pre-built binaries for the latest release of mLatex from the releases page. Download the archive for your platform and place it in a directory that is in your PATH. To stay up to date with future releases, simply run `mlatex update`.
-- You can also install mLatex through different package managers. Note that the versions in package managers might lag slightly behind the latest release.
-  - Linux:
-  - macOS:
-  - Windows:
-    
-  > Note: No packages have been released at this time.
+The mLaTeX CLI is available from various sources:
+
+* You can get the source code and pre-built binaries for the latest release of mLaTeX from the releases page. Download the archive for your platform and place it in a directory that is in your PATH. To stay up to date with future releases, simply run `mlatex update`.
+* You can also install mLaTeX through different package managers. Note that the versions in package managers might lag slightly behind the latest release.
+* Linux:
+* macOS:
+* Windows:
+
+
+> Note: No packages have been released at this time.
+
+
 
 ## Usage
-Once you have mLatex correctly set up, you can run it via the command line:
+
+Once you have mLaTeX correctly set up, you can run it via the command line:
 
 ```sh
 # Get help information from the CLI
@@ -56,12 +61,14 @@ mlatex --help
 # Check the installed version
 mlatex --version
 
+
 ```
 
 You can also compile your PDF directly by providing an input and output file:
 
 ```sh
 mlatex compile --input input.mtex --output output.pdf # --jit
+
 
 ```
 
@@ -71,7 +78,7 @@ mlatex compile --input input.mtex --output output.pdf # --jit
 
 The primary hub for the project is the Discord server. It is a great place to ask questions, discuss contributing, or just chat. I would be happy to see you there!
 
-* **Join the Discord:** https://discord.gg/null
+* **Join the Discord:** [https://discord.gg/null](https://discord.gg/null)
 
 As the sole maintainer of this project, I want to ensure everyone has a positive experience. If you have questions, need to discuss the project's direction, or have any concerns, please feel free to reach out to me directly:
 
@@ -81,7 +88,7 @@ As the sole maintainer of this project, I want to ensure everyone has a positive
 
 I highly encourage and appreciate contributions from the community. If you experience bugs, feel free to open an issue. If you would like to implement a new feature or a bug fix, please follow the steps outlined in the [contribution guide](https://www.google.com/search?q=CONTRIBUTING.md).
 
-To build mLatex yourself, first ensure that you have a C++20 compatible compiler and [CMake](https://cmake.org/) installed. Then, clone this repository and follow the directions available on the [official mLatex documentation page](https://github.com/aveloux/docs).
+To build mLaTeX yourself, first ensure that you have a C++20 compatible compiler and [CMake](https://cmake.org/) installed. Then, clone this repository and follow the directions available on the [official mLaTeX documentation page](https://github.com/aveloux/docs).
 
 ## Acknowledgements
 
