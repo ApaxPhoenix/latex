@@ -94,4 +94,4 @@ cmake --build .
 
 ## Acknowledgements
 
-I'd like to acknowledge the Vatican for their profound inspiration. Although it might seem random, their organization, timeless art, and ancient architecture inspired me to make this tool, approaching its design as if it were a God-given mission.
+To myself, Andres Hernandez, Christ is King.
