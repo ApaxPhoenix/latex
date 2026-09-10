@@ -45,10 +45,7 @@ The mLaTeX CLI is available from various sources:
 * macOS:
 * Windows:
 
-
 > Note: No packages have been released at this time.
-
-
 
 ## Usage
 
@@ -61,14 +58,12 @@ mlatex --help
 # Check the installed version
 mlatex --version
 
-
 ```
 
 You can also compile your PDF directly by providing an input and output file:
 
 ```sh
 mlatex compile --input input.mtex --output output.pdf # --jit
-
 
 ```
 
@@ -86,7 +81,7 @@ As the sole maintainer of this project, I want to ensure everyone has a positive
 
 ## Contributing
 
-I highly encourage and appreciate contributions from the community. If you experience bugs, feel free to open an issue. If you would like to implement a new feature or a bug fix, please follow the steps outlined in the [contribution guide](./CONTRIBUTING.md).
+I highly encourage and appreciate contributions from the community. If you experience bugs, feel free to open an issue. If you would like to implement a new feature or a bug fix, please follow the steps outlined in the [contribution guide](https://www.google.com/search?q=./contributng.MD).
 
 To build mLaTeX yourself, first ensure that you have a C++20 compatible compiler and [CMake](https://cmake.org/) installed. Then, clone this repository and follow the directions available on the [official mLaTeX documentation page](https://github.com/aveloux/docs).
 
