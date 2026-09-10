@@ -21,6 +21,6 @@
     <img alt="Last Commit" src="https://img.shields.io/github/last-commit/aveloux/latex?color=success"
   ></a>
   <a href="https://github.com/aveloux/latex/blob/main/LICENSE">
-    <img alt="MIT License" src="https://img.shields.io/badge/license-MIT-brightgreen"
+    <img alt="AGPL v3 License" src="https://img.shields.io/badge/license-AGPL%20v3-brightgreen"
   ></a>
 </p>
