@@ -94,4 +94,4 @@ cmake --build .
 
 ## Acknowledgements
 
-To myself, Andres Hernandez, Christ is King.
+To myself, Andres Hernandez [@ApaxPhoenix](https://github.com/ApaxPhoenix), Christ is King.
