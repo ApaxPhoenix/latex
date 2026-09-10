@@ -1,5 +1,5 @@
 <h1 align="center">
-  LaTeX C++ Typesetting Engine
+  LaTeX+
 </h1>
 
 <p align="center">
