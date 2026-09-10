@@ -81,16 +81,7 @@ As the sole maintainer of this project, I want to ensure everyone has a positive
 
 I highly encourage and appreciate contributions from the community. If you experience bugs, feel free to open an issue. If you would like to implement a new feature or a bug fix, please follow the steps outlined in the [contribution guide](https://www.google.com/search?q=CONTRIBUTING.md).
 
-To build mLatex yourself, first ensure that you have a C++20 compatible compiler and [CMake](https://cmake.org/) installed. Then, clone this repository and build the CLI with the following commands:
-
-```sh
-git clone [https://github.com/aveloux/latex](https://github.com/aveloux/latex)
-cd latex
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build .
-
-```
+To build mLatex yourself, first ensure that you have a C++20 compatible compiler and [CMake](https://cmake.org/) installed. Then, clone this repository and follow the directions available on the [official mLatex documentation page](https://github.com/aveloux/docs).
 
 ## Acknowledgements
 
